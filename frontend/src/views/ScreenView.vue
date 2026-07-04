@@ -7,14 +7,14 @@
 
     <!-- Waiting for game -->
     <div v-if="game.status === 'lobby'" class="screen-lobby">
-      <h1>Join at <span class="join-url">{{ joinUrl }}</span></h1>
+      <h1>{{ $t('screen.joinAt') }} <span class="join-url">{{ joinUrl }}</span></h1>
       <div class="big-code">{{ code }}</div>
       <PlayerList :players="game.players.filter(p => !p.isHost)" :large="true" />
     </div>
 
     <!-- Question screen -->
     <div v-else-if="game.status === 'question'" class="screen-question">
-      <div class="q-counter">Question {{ game.questionIndex + 1 }} of {{ game.totalQuestions }}</div>
+      <div class="q-counter">{{ $t('screen.question', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</div>
       <QuestionCard :question="game.currentQuestion" :show-answer="false" :large="true" />
       <Timer :seconds="game.timeLimit" :key="game.questionIndex" :large="true" />
     </div>
@@ -27,7 +27,7 @@
 
     <!-- End screen -->
     <div v-else-if="game.status === 'ended'" class="screen-end">
-      <h1>🏆 Final Scores</h1>
+      <h1>{{ $t('game.finalScores') }}</h1>
       <Scoreboard :players="game.scoreboard" :show-podium="true" />
     </div>
 
@@ -46,6 +46,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGameStore } from '../stores/game.js'
 import { useSocket } from '../composables/useSocket.js'
+import { setLocale } from '../i18n/index.js'
 import QuestionCard from '../components/QuestionCard.vue'
 import Scoreboard from '../components/Scoreboard.vue'
 import ScoreTable from '../components/ScoreTable.vue'
@@ -59,7 +60,11 @@ const socket = useSocket()
 const code = computed(() => route.params.code?.toUpperCase())
 const joinUrl = computed(() => window.location.origin + '/join')
 
-const onJoined = ({ players }) => { game.setPlayers(players); game.setStatus('lobby') }
+const onJoined = ({ players, language }) => {
+  game.setPlayers(players)
+  game.setStatus('lobby')
+  if (language) { game.setLanguage(language); setLocale(language) }
+}
 const onPlayerJoined = ({ players }) => game.setPlayers(players)
 const onPlayerLeft = ({ players }) => game.setPlayers(players)
 const onGameStarted = ({ totalQuestions }) => { game.totalQuestions = totalQuestions }
@@ -73,6 +78,7 @@ const onShowScoreboard = ({ scoreboard, roundType }) => {
 }
 const onHideScoreboard = () => { game.scoreboardVisible = false }
 const onRoundTypeChanged = ({ roundType }) => { game.roundType = roundType }
+const onLanguageChanged = ({ language }) => { game.setLanguage(language); setLocale(language) }
 
 onMounted(() => {
   socket.emit('join_session', { code: code.value, nickname: '__screen__' })
@@ -86,6 +92,7 @@ onMounted(() => {
   socket.on('show_scoreboard', onShowScoreboard)
   socket.on('hide_scoreboard', onHideScoreboard)
   socket.on('round_type_changed', onRoundTypeChanged)
+  socket.on('language_changed', onLanguageChanged)
 })
 
 onUnmounted(() => {
@@ -99,6 +106,7 @@ onUnmounted(() => {
   socket.off('show_scoreboard', onShowScoreboard)
   socket.off('hide_scoreboard', onHideScoreboard)
   socket.off('round_type_changed', onRoundTypeChanged)
+  socket.off('language_changed', onLanguageChanged)
 })
 </script>
 

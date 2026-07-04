@@ -14,7 +14,9 @@ export const useGameStore = defineStore('game', () => {
   const timeLimit = ref(30)
   const roundType = ref('normal')
   const scoreboardVisible = ref(false)
+  const language = ref('en')
 
+  function setLanguage(lang) { language.value = lang }
   function setCode(c) { code.value = c }
   function setStatus(s) { status.value = s }
   function setPlayers(list) { players.value = list }
@@ -58,12 +60,13 @@ export const useGameStore = defineStore('game', () => {
     myAnswer.value = null
     roundType.value = 'normal'
     scoreboardVisible.value = false
+    language.value = 'en'
   }
 
   return {
     code, status, players, currentQuestion, questionIndex,
     totalQuestions, scoreboard, lastResult, myAnswer, timeLimit,
-    roundType, scoreboardVisible,
-    setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset,
+    roundType, scoreboardVisible, language,
+    setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset, setLanguage,
   }
 })

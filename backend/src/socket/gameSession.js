@@ -28,6 +28,7 @@ export class GameSession {
     this.timer = null
     this.roundType = 'normal'
     this.firstCorrectThisQuestion = false
+    this.language = 'en'
   }
 
   addPlayer(socketId, nickname, isHost = false) {
@@ -202,6 +203,12 @@ export class GameSession {
   setRoundType(type) {
     if (!VALID_ROUND_TYPES.includes(type)) return false
     this.roundType = type
+    return true
+  }
+
+  setLanguage(lang) {
+    if (this.status !== 'lobby') return false
+    this.language = lang
     return true
   }
 

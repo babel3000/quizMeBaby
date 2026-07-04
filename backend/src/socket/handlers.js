@@ -10,6 +10,7 @@ export function registerHandlers(io, socket) {
       code: session.code,
       player,
       players: session.getPlayers(),
+      language: session.language,
     })
   })
 
@@ -26,7 +27,7 @@ export function registerHandlers(io, socket) {
     const player = session.addPlayer(socket.id, nickname.trim())
     socket.join(upper)
 
-    socket.emit('joined_session', { code: upper, player, players: session.getPlayers() })
+    socket.emit('joined_session', { code: upper, player, players: session.getPlayers(), language: session.language })
     socket.to(upper).emit('player_joined', { player, players: session.getPlayers() })
   })
 
@@ -45,8 +46,26 @@ export function registerHandlers(io, socket) {
 
     if (!questions?.length) return socket.emit('start_error', { message: 'No questions available.' })
 
+    // Overlay translations when the room language isn't English
+    if (session.language !== 'en') {
+      const ids = questions.map(q => q.id)
+      const { data: translations } = await supabase
+        .from('question_translations')
+        .select('question_id, text, correct_answer, options')
+        .in('question_id', ids)
+        .eq('locale', session.language)
+
+      if (translations?.length) {
+        const tMap = new Map(translations.map(t => [t.question_id, t]))
+        questions = questions.map(q => {
+          const t = tMap.get(q.id)
+          return t ? { ...q, text: t.text, correct_answer: t.correct_answer, options: t.options } : q
+        })
+      }
+    }
+
     session.startGame(questions)
-    io.to(code).emit('game_started', { totalQuestions: questions.length })
+    io.to(code).emit('game_started', { totalQuestions: questions.length, language: session.language })
     setTimeout(() => session.startQuestion(io), 3000)
   })
 
@@ -102,6 +121,16 @@ export function registerHandlers(io, socket) {
 
     if (session.questionAnswers.size >= nonHostPlayers.length) {
       session.revealResults(io)
+    }
+  })
+
+  const VALID_LANGUAGES = ['en', 'pt-PT']
+  socket.on('set_language', ({ code, language } = {}) => {
+    const session = getSession(code)
+    if (!session || session.hostSocketId !== socket.id) return
+    if (!VALID_LANGUAGES.includes(language)) return
+    if (session.setLanguage(language)) {
+      io.to(code).emit('language_changed', { language })
     }
   })
 

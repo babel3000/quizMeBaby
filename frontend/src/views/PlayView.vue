@@ -6,18 +6,18 @@
       <div class="card lobby-card">
         <div class="player-avatar">{{ initials }}</div>
         <h2 class="team-name">{{ player.nickname }}</h2>
-        <span class="badge badge-success">Joined ✓</span>
+        <span class="badge badge-success">{{ $t('lobby.joined') }}</span>
         <div class="room-info">
-          Room <strong class="room-code">{{ game.code }}</strong>
+          {{ $t('lobby.room') }} <strong class="room-code">{{ game.code }}</strong>
         </div>
-        <p class="waiting">Waiting for host to start the game…</p>
+        <p class="waiting">{{ $t('lobby.waiting') }}</p>
         <div class="dots"><span /><span /><span /></div>
       </div>
     </div>
 
     <!-- Starting countdown -->
     <div v-else-if="game.status === 'starting'" class="fullscreen-center">
-      <p class="get-ready">Get ready!</p>
+      <p class="get-ready">{{ $t('game.getReady') }}</p>
       <div class="countdown">{{ countdown }}</div>
     </div>
 
@@ -26,7 +26,7 @@
 
       <!-- Sticky top bar -->
       <div class="q-topbar">
-        <span class="badge badge-primary">Q{{ game.questionIndex + 1 }} / {{ game.totalQuestions }}</span>
+        <span class="badge badge-primary">{{ $t('game.questionOf', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</span>
         <span v-if="myConsecutiveSkips > 0" class="skip-mult-chip">
           ⚡ ×{{ nextSkipMultiplier }}
         </span>
@@ -63,11 +63,11 @@
 
         <!-- Skip -->
         <button class="skip-btn" @click="skipQuestion">
-          <span class="skip-label">Skip ↷</span>
+          <span class="skip-label">{{ $t('game.skip') }}</span>
           <span v-if="myConsecutiveSkips > 0" class="skip-detail">
-            next correct ×{{ (1 + 0.25 * Math.min(myConsecutiveSkips + 1, 4)).toFixed(2).replace(/\.?0+$/, '') }}
+            {{ $t('game.nextCorrect', { mult: (1 + 0.25 * Math.min(myConsecutiveSkips + 1, 4)).toFixed(2).replace(/\.?0+$/, '') }) }}
           </span>
-          <span v-if="myConsecutiveSkips >= 4" class="skip-maxed">multiplier maxed</span>
+          <span v-if="myConsecutiveSkips >= 4" class="skip-maxed">{{ $t('game.multiplierMaxed') }}</span>
         </button>
       </div>
 
@@ -81,10 +81,10 @@
           {{ game.myAnswer.skipped ? '↷' : game.myAnswer.isCorrect ? '✓' : '✗' }}
         </div>
         <p class="feedback-label">
-          {{ game.myAnswer.skipped ? 'Skipped' : game.myAnswer.isCorrect ? 'Correct!' : 'Wrong!' }}
+          {{ game.myAnswer.skipped ? $t('game.skipped') : game.myAnswer.isCorrect ? $t('game.correct') : $t('game.wrong') }}
         </p>
         <p v-if="game.myAnswer.skipped && myConsecutiveSkips > 0" class="feedback-sub skip-glow">
-          ×{{ nextSkipMultiplier }} on your next correct answer
+          {{ $t('game.nextSkipBonus', { mult: nextSkipMultiplier }) }}
         </p>
         <p v-else-if="game.myAnswer.pointsAwarded > 0" class="feedback-pts">
           +{{ game.myAnswer.pointsAwarded.toLocaleString() }}
@@ -92,7 +92,7 @@
         <p v-else-if="game.myAnswer.pointsAwarded < 0" class="feedback-pts penalty">
           {{ game.myAnswer.pointsAwarded.toLocaleString() }}
         </p>
-        <p class="feedback-waiting">Waiting for results…</p>
+        <p class="feedback-waiting">{{ $t('game.waitingForResults') }}</p>
       </div>
     </div>
 
@@ -100,13 +100,13 @@
     <div v-else-if="game.status === 'results'" class="page-center">
       <div class="card results-card">
         <div class="results-answer">
-          <span class="results-label">Answer</span>
+          <span class="results-label">{{ $t('results.correctAnswer') }}</span>
           <span class="results-value">{{ game.lastResult?.correctAnswer }}</span>
         </div>
         <div class="my-result" :class="game.myAnswer?.skipped ? 'skipped' : game.myAnswer?.isCorrect ? 'correct' : 'incorrect'">
-          <span>{{ game.myAnswer?.skipped ? '↷ Skipped' : game.myAnswer?.isCorrect ? '✓ Correct' : '✗ Wrong' }}</span>
-          <span v-if="game.myAnswer?.pointsAwarded > 0">+{{ game.myAnswer.pointsAwarded.toLocaleString() }} pts</span>
-          <span v-else-if="game.myAnswer?.pointsAwarded < 0" class="penalty-text">{{ game.myAnswer.pointsAwarded.toLocaleString() }} pts</span>
+          <span>{{ game.myAnswer?.skipped ? $t('results.skipped') : game.myAnswer?.isCorrect ? $t('results.correct') : $t('results.wrong') }}</span>
+          <span v-if="game.myAnswer?.pointsAwarded > 0">+{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
+          <span v-else-if="game.myAnswer?.pointsAwarded < 0" class="penalty-text">{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
         </div>
         <Scoreboard :players="game.scoreboard" :highlight-id="player.id" />
       </div>
@@ -115,9 +115,9 @@
     <!-- Game over -->
     <div v-else-if="game.status === 'ended'" class="page-center">
       <div class="card end-card">
-        <div class="logo">🏆 Game Over!</div>
+        <div class="logo">{{ $t('game.gameOver') }}</div>
         <Scoreboard :players="game.scoreboard" :highlight-id="player.id" :show-podium="true" />
-        <RouterLink to="/" class="btn btn-primary btn-lg end-btn">Play Again</RouterLink>
+        <RouterLink to="/" class="btn btn-primary btn-lg end-btn">{{ $t('game.playAgain') }}</RouterLink>
       </div>
     </div>
 
@@ -134,6 +134,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { setLocale } from '../i18n/index.js'
 import { useGameStore } from '../stores/game.js'
 import { usePlayerStore } from '../stores/player.js'
 import { useSocket } from '../composables/useSocket.js'
@@ -141,6 +143,7 @@ import Timer from '../components/Timer.vue'
 import Scoreboard from '../components/Scoreboard.vue'
 import ScoreTable from '../components/ScoreTable.vue'
 
+const { t } = useI18n()
 const game = useGameStore()
 const player = usePlayerStore()
 const socket = useSocket()
@@ -186,6 +189,7 @@ const onShowScoreboard = ({ scoreboard, roundType }) => {
 }
 const onHideScoreboard = () => { game.scoreboardVisible = false }
 const onRoundTypeChanged = ({ roundType }) => { game.roundType = roundType }
+const onLanguageChanged = ({ language }) => { game.setLanguage(language); setLocale(language) }
 
 onMounted(() => {
   socket.on('game_started', onGameStarted)
@@ -199,6 +203,7 @@ onMounted(() => {
   socket.on('show_scoreboard', onShowScoreboard)
   socket.on('hide_scoreboard', onHideScoreboard)
   socket.on('round_type_changed', onRoundTypeChanged)
+  socket.on('language_changed', onLanguageChanged)
 })
 
 onUnmounted(() => {
@@ -213,6 +218,7 @@ onUnmounted(() => {
   socket.off('show_scoreboard', onShowScoreboard)
   socket.off('hide_scoreboard', onHideScoreboard)
   socket.off('round_type_changed', onRoundTypeChanged)
+  socket.off('language_changed', onLanguageChanged)
 })
 
 function submitAnswer(answer) {

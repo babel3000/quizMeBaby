@@ -1,16 +1,16 @@
 <template>
   <div class="page-center">
     <div class="join-card card">
-      <RouterLink to="/" class="back-link">← Back</RouterLink>
-      <div class="logo">Join Game</div>
+      <RouterLink to="/" class="back-link">{{ $t('back') }}</RouterLink>
+      <div class="logo">{{ $t('join.title') }}</div>
 
       <form @submit.prevent="join">
         <div class="field">
-          <label>Room Code</label>
+          <label>{{ $t('join.roomCode') }}</label>
           <input
             v-model="code"
             type="text"
-            placeholder="e.g. ABC123"
+            :placeholder="$t('join.roomCodePlaceholder')"
             maxlength="6"
             autocomplete="off"
             inputmode="text"
@@ -18,11 +18,11 @@
           />
         </div>
         <div class="field">
-          <label>Team Name</label>
+          <label>{{ $t('join.teamName') }}</label>
           <input
             v-model="nickname"
             type="text"
-            placeholder="e.g. Quiz Kings"
+            :placeholder="$t('join.teamNamePlaceholder')"
             maxlength="20"
           />
         </div>
@@ -30,7 +30,7 @@
         <p v-if="error" class="error">{{ error }}</p>
 
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:16px" :disabled="loading">
-          {{ loading ? 'Joining...' : 'Join Game 🎮' }}
+          {{ loading ? $t('join.submitting') : $t('join.submit') }}
         </button>
       </form>
     </div>
@@ -40,11 +40,14 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { setLocale } from '../i18n/index.js'
 import { useSocket } from '../composables/useSocket.js'
 import { useGameStore } from '../stores/game.js'
 import { usePlayerStore } from '../stores/player.js'
 
 const router = useRouter()
+const { t } = useI18n()
 const game = useGameStore()
 const player = usePlayerStore()
 const socket = useSocket()
@@ -54,10 +57,12 @@ const nickname = ref('')
 const error = ref('')
 const loading = ref(false)
 
-const onJoined = ({ code: roomCode, player: me, players }) => {
+const onJoined = ({ code: roomCode, player: me, players, language }) => {
   player.setPlayer(me)
   game.setCode(roomCode)
   game.setPlayers(players)
+  game.setLanguage(language ?? 'en')
+  setLocale(language ?? 'en')
   game.setStatus('lobby')
   router.push('/play')
 }
@@ -76,7 +81,7 @@ onUnmounted(() => {
 function join() {
   error.value = ''
   if (!code.value.trim() || !nickname.value.trim()) {
-    error.value = 'Both fields are required.'
+    error.value = t('join.required')
     return
   }
   loading.value = true

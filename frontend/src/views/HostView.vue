@@ -3,18 +3,18 @@
     <!-- Setup screen -->
     <div v-if="game.status === 'idle'" class="page-center">
       <div class="card setup-card">
-        <RouterLink to="/" class="back-link">← Back</RouterLink>
-        <div class="logo">Host a Game</div>
+        <RouterLink to="/" class="back-link">{{ $t('back') }}</RouterLink>
+        <div class="logo">{{ $t('host.title') }}</div>
 
         <div class="field">
-          <label>Your Name</label>
-          <input v-model="hostName" type="text" placeholder="e.g. Quiz Master" maxlength="20" />
+          <label>{{ $t('host.yourName') }}</label>
+          <input v-model="hostName" type="text" :placeholder="$t('host.yourNamePlaceholder')" maxlength="20" />
         </div>
 
         <p v-if="error" class="error">{{ error }}</p>
 
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px" @click="createSession" :disabled="loading">
-          {{ loading ? 'Creating...' : 'Create Room 🎙️' }}
+          {{ loading ? $t('host.creating') : $t('host.create') }}
         </button>
       </div>
     </div>
@@ -24,13 +24,27 @@
       <div class="lobby-header">
         <div class="logo">PubQuiz</div>
         <div class="room-code-block">
-          <span class="room-label">ROOM CODE</span>
+          <span class="room-label">{{ $t('host.roomCode') }}</span>
           <span class="room-code">{{ game.code }}</span>
-          <span class="room-hint">Teams join at <strong>{{ joinUrl }}</strong></span>
+          <span class="room-hint">{{ $t('host.teamsJoinAt') }} <strong>{{ joinUrl }}</strong></span>
         </div>
       </div>
 
       <PlayerList :players="nonHostPlayers" />
+
+      <!-- Language selector -->
+      <div class="lang-section">
+        <span class="section-label">{{ $t('host.language') }}</span>
+        <div class="lang-pills">
+          <button
+            v-for="lang in LANGUAGES"
+            :key="lang.code"
+            class="lang-pill"
+            :class="{ active: game.language === lang.code }"
+            @click="changeLanguage(lang.code)"
+          >{{ lang.label }}</button>
+        </div>
+      </div>
 
       <div class="lobby-actions">
         <button
@@ -38,10 +52,10 @@
           :disabled="nonHostPlayers.length === 0"
           @click="startGame"
         >
-          Start Game ({{ nonHostPlayers.length }} team{{ nonHostPlayers.length !== 1 ? 's' : '' }})
+          {{ $t('host.startGame') }} ({{ nonHostPlayers.length }} {{ nonHostPlayers.length !== 1 ? $t('host.teams') : $t('host.team') }})
         </button>
         <RouterLink :to="`/screen/${game.code}`" target="_blank" class="btn btn-secondary">
-          📺 Open Screen View
+          {{ $t('host.openScreen') }}
         </RouterLink>
       </div>
     </div>
@@ -56,7 +70,7 @@
 
       <!-- Countdown before first question -->
       <div v-if="game.status === 'starting'" class="countdown-panel card">
-        <p>Get ready!</p>
+        <p>{{ $t('game.getReady') }}</p>
         <div class="countdown-number">{{ countdown }}</div>
       </div>
 
@@ -64,10 +78,10 @@
       <div v-else-if="game.status === 'question'" class="question-panel">
         <QuestionCard :question="game.currentQuestion" :show-answer="false" />
         <div class="answer-progress">
-          <span>{{ answeredCount }} / {{ nonHostPlayers.length }} answered</span>
+          <span>{{ $t('game.answered', { n: answeredCount, total: nonHostPlayers.length }) }}</span>
           <Timer :seconds="game.timeLimit" :key="game.questionIndex" @expired="revealResults" />
         </div>
-        <button class="btn btn-secondary" @click="revealResults">Reveal Answer</button>
+        <button class="btn btn-secondary" @click="revealResults">{{ $t('results.revealAnswer') }}</button>
       </div>
 
       <!-- Results for this question -->
@@ -76,7 +90,7 @@
 
         <!-- Round type selector -->
         <div class="round-type-section">
-          <p class="section-label">Round type for next question</p>
+          <p class="section-label">{{ $t('roundTypes.label') }}</p>
           <div class="rt-selector">
             <button
               v-for="rt in roundTypes"
@@ -91,12 +105,12 @@
         <Scoreboard :players="game.scoreboard" />
 
         <div class="results-actions">
-          <button class="btn btn-secondary" @click="showScoreboard">📊 Show Scoreboard</button>
+          <button class="btn btn-secondary" @click="showScoreboard">{{ $t('results.showScoreboard') }}</button>
           <button v-if="!game.lastResult?.isLastQuestion" class="btn btn-primary btn-lg" @click="nextQuestion">
-            Next Question →
+            {{ $t('results.nextQuestion') }}
           </button>
           <button v-else class="btn btn-primary btn-lg" @click="endGame">
-            End Game 🏆
+            {{ $t('results.endGame') }}
           </button>
         </div>
       </div>
@@ -105,7 +119,7 @@
     <!-- End screen -->
     <div v-else-if="game.status === 'ended'" class="page-center">
       <div class="card end-card">
-        <div class="logo">🏆 Game Over!</div>
+        <div class="logo">{{ $t('game.gameOver') }}</div>
         <Scoreboard :players="game.scoreboard" :show-podium="true" />
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:24px" @click="resetGame">
           New Game
@@ -130,6 +144,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { setLocale } from '../i18n/index.js'
 import { useGameStore } from '../stores/game.js'
 import { usePlayerStore } from '../stores/player.js'
 import { useSocket } from '../composables/useSocket.js'
@@ -139,6 +155,7 @@ import ScoreTable from '../components/ScoreTable.vue'
 import Timer from '../components/Timer.vue'
 import PlayerList from '../components/PlayerList.vue'
 
+const { t } = useI18n()
 const game = useGameStore()
 const player = usePlayerStore()
 const socket = useSocket()
@@ -149,30 +166,29 @@ const loading = ref(false)
 const countdown = ref(3)
 const answeredCount = ref(0)
 
-const roundTypes = [
-  { value: 'normal',      label: 'Normal' },
-  { value: 'hot_streak',  label: '🔥 Hot Streak' },
-  { value: 'safety_net',  label: '🛡️ Safety Net' },
-  { value: 'lone_wolf',   label: '🐺 Lone Wolf' },
-  { value: 'double_down', label: '⚡ Double Down' },
+const LANGUAGES = [
+  { code: 'en',    label: '🇬🇧 English' },
+  { code: 'pt-PT', label: '🇵🇹 Português' },
 ]
 
-const ROUND_TYPE_LABELS = {
-  normal:      'Normal',
-  hot_streak:  '🔥 Hot Streak',
-  safety_net:  '🛡️ Safety Net',
-  lone_wolf:   '🐺 Lone Wolf',
-  double_down: '⚡ Double Down',
-}
+const roundTypes = computed(() => [
+  { value: 'normal',      label: t('roundTypes.normal') },
+  { value: 'hot_streak',  label: t('roundTypes.hot_streak') },
+  { value: 'safety_net',  label: t('roundTypes.safety_net') },
+  { value: 'lone_wolf',   label: t('roundTypes.lone_wolf') },
+  { value: 'double_down', label: t('roundTypes.double_down') },
+])
+
+const roundTypeLabel = computed(() => t(`roundTypes.${game.roundType}`) ?? game.roundType)
 
 const joinUrl = computed(() => window.location.origin + '/join')
 const nonHostPlayers = computed(() => game.players.filter(p => !p.isHost))
-const roundTypeLabel = computed(() => ROUND_TYPE_LABELS[game.roundType] ?? game.roundType)
 
-const onSessionCreated = ({ code, player: me, players }) => {
+const onSessionCreated = ({ code, player: me, players, language }) => {
   player.setPlayer(me)
   game.setCode(code)
   game.setPlayers(players)
+  game.setLanguage(language ?? 'en')
   game.setStatus('lobby')
   loading.value = false
 }
@@ -189,6 +205,7 @@ const onPlayerAnswered = ({ totalAnswered }) => { answeredCount.value = totalAns
 const onResultsRevealed = data => game.setResults(data)
 const onGameEnded = data => game.endGame(data)
 const onRoundTypeChanged = ({ roundType }) => { game.roundType = roundType }
+const onLanguageChanged = ({ language }) => { game.setLanguage(language); setLocale(language) }
 const onShowScoreboard = ({ scoreboard, roundType }) => {
   game.scoreboard = scoreboard
   game.roundType = roundType
@@ -208,6 +225,7 @@ onMounted(() => {
   socket.on('round_type_changed', onRoundTypeChanged)
   socket.on('show_scoreboard', onShowScoreboard)
   socket.on('hide_scoreboard', onHideScoreboard)
+  socket.on('language_changed', onLanguageChanged)
 })
 
 onUnmounted(() => {
@@ -222,11 +240,16 @@ onUnmounted(() => {
   socket.off('round_type_changed', onRoundTypeChanged)
   socket.off('show_scoreboard', onShowScoreboard)
   socket.off('hide_scoreboard', onHideScoreboard)
+  socket.off('language_changed', onLanguageChanged)
 })
+
+function changeLanguage(lang) {
+  socket.emit('set_language', { code: game.code, language: lang })
+}
 
 function createSession() {
   error.value = ''
-  if (!hostName.value.trim()) { error.value = 'Name required.'; return }
+  if (!hostName.value.trim()) { error.value = t('host.nameRequired'); return }
   loading.value = true
   socket.emit('create_session', { nickname: hostName.value.trim() })
 }
@@ -287,6 +310,16 @@ function resetGame() {
 .room-label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
 .room-code { display: block; font-size: 3.5rem; font-weight: 900; letter-spacing: 8px; color: var(--primary); line-height: 1.1; }
 .room-hint { display: block; color: var(--text-muted); font-size: 0.9rem; margin-top: 8px; }
+.lang-section { margin-top: 24px; }
+.lang-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.lang-pill {
+  padding: 7px 16px; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
+  background: var(--surface-2); color: var(--text-muted);
+  border: 2px solid transparent; cursor: pointer; transition: all 0.15s;
+}
+.lang-pill:hover { border-color: var(--primary); color: var(--text); }
+.lang-pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+
 .lobby-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
 
 .host-game { max-width: 800px; margin: 0 auto; padding: 24px; }

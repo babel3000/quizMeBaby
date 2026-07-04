@@ -3,18 +3,18 @@
     <div class="home-inner">
       <div class="home-brand">
         <div class="logo">PubQuiz</div>
-        <p class="tagline">The ultimate live quiz experience</p>
+        <p class="tagline">{{ $t('home.tagline') }}</p>
       </div>
 
       <div class="home-actions">
         <RouterLink to="/host" class="btn btn-primary btn-lg action-btn">
-          🎙️ Host a Game
+          {{ $t('home.host') }}
         </RouterLink>
         <RouterLink to="/join" class="btn btn-secondary btn-lg action-btn">
-          🎮 Join a Game
+          {{ $t('home.join') }}
         </RouterLink>
         <RouterLink to="/manage" class="manage-link">
-          ⚙️ Manage Questions
+          {{ $t('home.manage') }}
         </RouterLink>
       </div>
     </div>
