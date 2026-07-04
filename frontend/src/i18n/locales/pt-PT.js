@@ -6,6 +6,7 @@ export default {
     host: '🎙️ Criar Jogo',
     join: '🎮 Entrar no Jogo',
     manage: '⚙️ Gerir Perguntas',
+    changeLanguage: 'Mudar idioma',
   },
 
   join: {

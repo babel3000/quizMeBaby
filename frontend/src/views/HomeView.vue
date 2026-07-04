@@ -16,13 +16,24 @@
         <RouterLink to="/manage" class="manage-link">
           {{ $t('home.manage') }}
         </RouterLink>
+        <RouterLink to="/" class="lang-change-link">
+          {{ currentLangFlag }} {{ $t('home.changeLanguage') }}
+        </RouterLink>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { SUPPORTED_LANGUAGES, getSavedLocale } from '../i18n/index.js'
+
+const { locale } = useI18n()
+const currentLangFlag = computed(() =>
+  SUPPORTED_LANGUAGES.find(l => l.code === locale.value)?.flag ?? '🌐'
+)
 </script>
 
 <style scoped>
@@ -65,6 +76,17 @@ import { RouterLink } from 'vue-router'
   transition: color 0.15s;
 }
 .manage-link:hover { color: var(--text); }
+
+.lang-change-link {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.lang-change-link:hover { opacity: 1; }
 
 /* Mobile: brand at top, actions toward bottom */
 @media (max-width: 480px) {

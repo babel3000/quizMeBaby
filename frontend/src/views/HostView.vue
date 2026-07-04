@@ -3,7 +3,7 @@
     <!-- Setup screen -->
     <div v-if="game.status === 'idle'" class="page-center">
       <div class="card setup-card">
-        <RouterLink to="/" class="back-link">{{ $t('back') }}</RouterLink>
+        <RouterLink to="/home" class="back-link">{{ $t('back') }}</RouterLink>
         <div class="logo">{{ $t('host.title') }}</div>
 
         <div class="field">

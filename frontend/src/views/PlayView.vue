@@ -117,7 +117,7 @@
       <div class="card end-card">
         <div class="logo">{{ $t('game.gameOver') }}</div>
         <Scoreboard :players="game.scoreboard" :highlight-id="player.id" :show-podium="true" />
-        <RouterLink to="/" class="btn btn-primary btn-lg end-btn">{{ $t('game.playAgain') }}</RouterLink>
+        <RouterLink to="/home" class="btn btn-primary btn-lg end-btn">{{ $t('game.playAgain') }}</RouterLink>
       </div>
     </div>
 

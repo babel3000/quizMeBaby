@@ -6,6 +6,7 @@ export default {
     host: '🎙️ Host a Game',
     join: '🎮 Join a Game',
     manage: '⚙️ Manage Questions',
+    changeLanguage: 'Change language',
   },
 
   join: {

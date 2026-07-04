@@ -1,7 +1,7 @@
 <template>
   <div class="page-center">
     <div class="join-card card">
-      <RouterLink to="/" class="back-link">{{ $t('back') }}</RouterLink>
+      <RouterLink to="/home" class="back-link">{{ $t('back') }}</RouterLink>
       <div class="logo">{{ $t('join.title') }}</div>
 
       <form @submit.prevent="join">
