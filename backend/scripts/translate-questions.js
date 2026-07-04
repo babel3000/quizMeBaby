@@ -1,124 +1,106 @@
 /**
- * Translates all questions from English into a target language using LibreTranslate,
+ * Translates all questions from English into a target language using Claude Haiku,
  * storing results in the question_translations table.
  *
  * Prerequisites:
  *   1. Run migrations/001_question_translations.sql in Supabase first.
- *   2. Either:
- *      a) Get a free API key (no credit card) at https://libretranslate.com
- *         and set LIBRETRANSLATE_API_KEY in .env, OR
- *      b) Leave LIBRETRANSLATE_API_KEY unset to use a public mirror that
- *         doesn't require a key (less reliable, may hit rate limits).
- *
- * Public mirrors (no signup needed, may be rate-limited):
- *   https://translate.argosopentech.com
- *   https://translate.terraprint.co
- *   https://lt.vern.cc
- * Set LIBRETRANSLATE_URL in .env to use one of these instead of libretranslate.com.
+ *   2. Add ANTHROPIC_API_KEY to backend/.env
+ *      (same key you use for Claude Code — no new account needed)
  *
  * Usage:
  *   node scripts/translate-questions.js [locale]
  *
  *   locale defaults to "pt-PT" if omitted.
+ *   Supported: pt-PT, pt-BR, es, fr, de, it, nl, pl
+ *
  *   Example: node scripts/translate-questions.js pt-PT
+ *
+ * Cost: ~$0.001 per question (Haiku pricing). 655 questions ≈ $0.65 total.
+ * Safe to re-run — already-translated questions are skipped.
  *
  * Run from the backend/ directory with Node v18+.
  */
 
 import 'dotenv/config'
+import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 
 const TARGET_LOCALE = process.argv[2] ?? 'pt-PT'
 
-// Map our locale codes to LibreTranslate language codes (ISO 639-1)
-const LIBRE_LANG_MAP = {
-  'pt-PT': 'pt',
-  'pt-BR': 'pt',
-  'es':    'es',
-  'fr':    'fr',
-  'de':    'de',
-  'it':    'it',
-  'nl':    'nl',
-  'pl':    'pl',
+const LOCALE_NAMES = {
+  'pt-PT': 'European Portuguese (Portugal)',
+  'pt-BR': 'Brazilian Portuguese',
+  'es':    'Spanish',
+  'fr':    'French',
+  'de':    'German',
+  'it':    'Italian',
+  'nl':    'Dutch',
+  'pl':    'Polish',
 }
 
-const LIBRE_TARGET = LIBRE_LANG_MAP[TARGET_LOCALE]
-if (!LIBRE_TARGET) {
-  console.error(`Unsupported locale "${TARGET_LOCALE}". Supported: ${Object.keys(LIBRE_LANG_MAP).join(', ')}`)
+const LOCALE_NAME = LOCALE_NAMES[TARGET_LOCALE]
+if (!LOCALE_NAME) {
+  console.error(`Unsupported locale "${TARGET_LOCALE}". Supported: ${Object.keys(LOCALE_NAMES).join(', ')}`)
   process.exit(1)
 }
 
-const LIBRE_URL     = (process.env.LIBRETRANSLATE_URL ?? 'https://libretranslate.com').replace(/\/$/, '')
-const LIBRE_API_KEY = process.env.LIBRETRANSLATE_API_KEY ?? ''
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-)
-
-// ── LibreTranslate ────────────────────────────────────────────────────
-
-async function libreTranslate(texts) {
-  // LibreTranslate accepts q as an array on most instances
-  const body = {
-    q:      texts,
-    source: 'en',
-    target: LIBRE_TARGET,
-    format: 'text',
-  }
-  if (LIBRE_API_KEY) body.api_key = LIBRE_API_KEY
-
-  const res = await fetch(`${LIBRE_URL}/translate`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`LibreTranslate error ${res.status}: ${text}`)
-  }
-
-  const data = await res.json()
-
-  // Response is either { translatedText: [...] } (array input)
-  // or { translatedText: "..." } (single string input)
-  if (Array.isArray(data.translatedText)) return data.translatedText
-  if (typeof data.translatedText === 'string') return [data.translatedText]
-
-  // Some instances return an array at top level for array input
-  if (Array.isArray(data)) return data.map(d => d.translatedText)
-
-  throw new Error(`Unexpected response format: ${JSON.stringify(data).slice(0, 200)}`)
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.error('ANTHROPIC_API_KEY is not set in .env')
+  process.exit(1)
 }
 
-// ── Batch helpers ─────────────────────────────────────────────────────
+const anthropic = new Anthropic()
+const supabase  = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
-// Translate one question at a time (5 strings: text + 4 options).
-// LibreTranslate public instances are rate-limited — keep batches small.
-const STRINGS_PER_QUESTION = 5
-const DELAY_MS = 1200   // ~50 req/min conservative limit; increase if you hit 429s
+// ── Translation ───────────────────────────────────────────────────────
 
-async function translateQuestion(q) {
-  const strings = [q.text, ...q.options]   // 5 strings
-  const translated = await libreTranslate(strings)
+// 20 questions per API call (100 strings). Keeps prompts manageable
+// and cost low while minimising total number of API calls.
+const BATCH_SIZE          = 20
+const STRINGS_PER_QUESTION = 5   // text + 4 options
 
-  if (translated.length < STRINGS_PER_QUESTION) {
-    throw new Error(`Expected ${STRINGS_PER_QUESTION} translations, got ${translated.length}`)
+async function translateBatch(questions) {
+  // Flatten: [q1.text, q1.opt0, q1.opt1, q1.opt2, q1.opt3, q2.text, …]
+  const strings = questions.flatMap(q => [q.text, ...q.options])
+
+  const message = await anthropic.messages.create({
+    model:      'claude-haiku-4-5-20251001',
+    max_tokens: 8192,
+    system: `You are a professional translator specialising in quiz content. \
+Translate the provided JSON array of strings from English to ${LOCALE_NAME}. \
+Rules:
+- Return ONLY a valid JSON array with exactly the same number of elements in the same order.
+- Keep proper nouns, brand names, and acronyms as-is unless they have a well-known ${LOCALE_NAME} equivalent.
+- Keep the tone natural and conversational, suitable for a pub quiz.
+- Do not add any text, explanations, or markdown outside the JSON array.`,
+    messages: [{ role: 'user', content: JSON.stringify(strings) }],
+  })
+
+  const raw = message.content[0].text.trim()
+  const match = raw.match(/\[[\s\S]*\]/)
+  if (!match) throw new Error(`No JSON array in response: ${raw.slice(0, 300)}`)
+
+  const translated = JSON.parse(match[0])
+  if (translated.length !== strings.length) {
+    throw new Error(`Expected ${strings.length} strings, got ${translated.length}`)
   }
 
-  const tText    = translated[0]
-  const tOptions = translated.slice(1)
-  const correctIdx = q.options.indexOf(q.correct_answer)
-  const tCorrect   = correctIdx !== -1 ? tOptions[correctIdx] : tOptions[0]
+  return questions.map((q, i) => {
+    const base     = i * STRINGS_PER_QUESTION
+    const tText    = translated[base]
+    const tOptions = translated.slice(base + 1, base + STRINGS_PER_QUESTION)
 
-  return {
-    question_id:    q.id,
-    locale:         TARGET_LOCALE,
-    text:           tText,
-    correct_answer: tCorrect,
-    options:        tOptions,
-  }
+    const correctIdx = q.options.indexOf(q.correct_answer)
+    const tCorrect   = correctIdx !== -1 ? tOptions[correctIdx] : tOptions[0]
+
+    return {
+      question_id:    q.id,
+      locale:         TARGET_LOCALE,
+      text:           tText,
+      correct_answer: tCorrect,
+      options:        tOptions,
+    }
+  })
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
@@ -126,9 +108,8 @@ async function translateQuestion(q) {
 async function run() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log(` PubQuiz — Question Translator`)
-  console.log(` Target locale : ${TARGET_LOCALE} → LibreTranslate "${LIBRE_TARGET}"`)
-  console.log(` API URL       : ${LIBRE_URL}`)
-  console.log(` API key       : ${LIBRE_API_KEY ? '✓ set' : '✗ not set (using public access)'}`)
+  console.log(` Target  : ${TARGET_LOCALE} (${LOCALE_NAME})`)
+  console.log(` Model   : claude-haiku-4-5`)
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
   // Fetch all questions
@@ -140,57 +121,52 @@ async function run() {
   if (fetchError) throw new Error(`Failed to fetch questions: ${fetchError.message}`)
   console.log(`Found ${questions.length} questions in DB`)
 
-  // Skip ones already translated for this locale
+  // Skip already-translated ones
   const { data: existing } = await supabase
     .from('question_translations')
     .select('question_id')
     .eq('locale', TARGET_LOCALE)
 
   const existingSet = new Set((existing ?? []).map(r => r.question_id))
-  const pending = questions.filter(q => !existingSet.has(q.id))
+  const pending     = questions.filter(q => !existingSet.has(q.id))
 
   if (!pending.length) {
     console.log('All questions already translated. Nothing to do.')
     return
   }
-  console.log(`${existingSet.size} already translated, ${pending.length} to process`)
-  console.log(`Estimated time: ~${Math.ceil(pending.length * DELAY_MS / 60000)} minutes\n`)
+
+  const totalBatches = Math.ceil(pending.length / BATCH_SIZE)
+  console.log(`${existingSet.size} already done, ${pending.length} to translate`)
+  console.log(`${totalBatches} API calls × ~${BATCH_SIZE} questions each\n`)
 
   let totalInserted = 0
   let totalFailed   = 0
 
-  for (let i = 0; i < pending.length; i++) {
-    const q = pending[i]
-    process.stdout.write(`  [${i + 1}/${pending.length}] ${q.text.slice(0, 50).padEnd(50)}… `)
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch    = pending.slice(i, i + BATCH_SIZE)
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1
+    process.stdout.write(`  Batch ${String(batchNum).padStart(3)}/${totalBatches} (${batch.length} questions)… `)
 
     try {
-      const row = await translateQuestion(q)
+      const rows = await translateBatch(batch)
 
-      const { error: insertError } = await supabase
+      const { error: upsertError } = await supabase
         .from('question_translations')
-        .upsert(row, { onConflict: 'question_id,locale' })
+        .upsert(rows, { onConflict: 'question_id,locale' })
 
-      if (insertError) throw new Error(insertError.message)
+      if (upsertError) throw new Error(upsertError.message)
 
-      totalInserted++
-      console.log('✓')
+      totalInserted += rows.length
+      console.log(`✓  (${totalInserted} total)`)
     } catch (err) {
-      totalFailed++
+      totalFailed += batch.length
       console.log(`✗  ${err.message}`)
-
-      // Back off on rate limit errors
-      if (err.message.includes('429') || err.message.includes('Too Many')) {
-        console.log('  Rate limited — waiting 10s…')
-        await new Promise(r => setTimeout(r, 10000))
-      }
     }
-
-    if (i < pending.length - 1) await new Promise(r => setTimeout(r, DELAY_MS))
   }
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log(` Done! ${totalInserted} inserted, ${totalFailed} failed.`)
-  if (totalFailed > 0) console.log(` Re-run to retry failed questions (already-done ones are skipped).`)
+  if (totalFailed > 0) console.log(` Re-run to retry failed batches (done ones are skipped).`)
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 }
 
