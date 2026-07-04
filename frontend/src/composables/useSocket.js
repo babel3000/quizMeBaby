@@ -4,7 +4,8 @@ let socket = null
 
 export function useSocket() {
   if (!socket) {
-    socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001', {
+    const url = import.meta.env.VITE_SOCKET_URL || `http://${window.location.hostname}:3001`
+    socket = io(url, {
       autoConnect: true,
       reconnectionAttempts: 5,
     })

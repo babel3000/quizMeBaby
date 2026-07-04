@@ -11,10 +11,10 @@ const app = express()
 const httpServer = createServer(app)
 
 const io = new Server(httpServer, {
-  cors: { origin: process.env.CORS_ORIGIN || 'http://localhost:5173', methods: ['GET', 'POST'] },
+  cors: { origin: process.env.CORS_ORIGIN || true, methods: ['GET', 'POST'] },
 })
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }))
+app.use(cors({ origin: process.env.CORS_ORIGIN || true }))
 app.use(express.json())
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
