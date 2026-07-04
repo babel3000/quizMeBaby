@@ -12,6 +12,8 @@ _Nothing active right now._
 - [x] Round type selector on host results panel
 - [x] Rename "players" → "teams" in lobby UI
 - [x] ScoreTable overlay on ScreenView and PlayView (host-triggered)
+- [x] Mobile-first design — full-screen layouts, Kahoot-style option tiles, safe-area insets, iOS zoom fix
+- [x] "Team Name" label on join screen (renamed from "Your Nickname")
 
 ## Up next
 - [ ] Streak tracking display refinement (show streak count on player screen)
@@ -27,7 +29,7 @@ _Nothing active right now._
 - [ ] Host view: pick specific questions or categories before starting
 - [ ] Animations between game states (question → results → next)
 - [ ] Sound effects (countdown tick, correct/wrong answer, scoreboard reveal)
-- [ ] Mobile layout polish for player view
+- [ ] Mobile polish for host view (lobby + game panel)
 
 ## Backlog — polish & UX
 - [ ] ScoreTable: rank movement arrows (↑↓ vs previous round)
