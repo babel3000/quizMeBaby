@@ -15,6 +15,12 @@
   --radius: 12px;
   --radius-lg: 20px;
   --shadow: 0 4px 24px rgba(0,0,0,0.4);
+
+  /* safe-area insets for notch / home indicator */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 html, body { height: 100%; }
@@ -24,6 +30,8 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
 #app { min-height: 100vh; display: flex; flex-direction: column; }
@@ -35,8 +43,10 @@ button {
   font-family: inherit;
   border: none;
   outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* ── Buttons ─────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -47,6 +57,7 @@ button {
   font-size: 1rem;
   font-weight: 700;
   transition: transform 0.1s, box-shadow 0.1s, background 0.2s;
+  min-height: 50px;
 }
 
 .btn:active { transform: scale(0.97); }
@@ -66,10 +77,16 @@ button {
 
 .btn-secondary:hover { background: #2e2c55; }
 
-.btn-lg { padding: 18px 40px; font-size: 1.2rem; border-radius: var(--radius-lg); }
+.btn-lg {
+  padding: 18px 40px;
+  font-size: 1.15rem;
+  border-radius: var(--radius-lg);
+  min-height: 60px;
+}
 
 .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
+/* ── Card ─────────────────────────────────── */
 .card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -77,7 +94,9 @@ button {
   box-shadow: var(--shadow);
 }
 
-input[type="text"] {
+/* ── Inputs ───────────────────────────────── */
+input[type="text"],
+input[type="number"] {
   width: 100%;
   padding: 14px 18px;
   background: var(--surface-2);
@@ -85,17 +104,20 @@ input[type="text"] {
   border-radius: var(--radius);
   color: var(--text);
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 1rem;        /* kept at 1rem — see mobile override below */
   transition: border-color 0.2s;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="number"]:focus {
   outline: none;
   border-color: var(--primary);
 }
 
-input[type="text"]::placeholder { color: var(--text-muted); }
+input[type="text"]::placeholder,
+input[type="number"]::placeholder { color: var(--text-muted); }
 
+/* ── Page layouts ─────────────────────────── */
 .page-center {
   display: flex;
   flex-direction: column;
@@ -105,6 +127,7 @@ input[type="text"]::placeholder { color: var(--text-muted); }
   padding: 24px;
 }
 
+/* ── Logo / badge / misc ──────────────────── */
 .logo {
   font-size: 2.5rem;
   font-weight: 900;
@@ -128,3 +151,45 @@ input[type="text"]::placeholder { color: var(--text-muted); }
 .badge-primary { background: rgba(233,69,96,0.2); color: var(--primary); }
 .badge-success { background: rgba(44,182,125,0.2); color: var(--success); }
 .badge-gold { background: rgba(255,215,0,0.2); color: var(--gold); }
+
+
+/* ══════════════════════════════════════════
+   MOBILE  (≤ 480px)
+   ══════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* Prevent iOS zoom on input focus — must be 16px */
+  input[type="text"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Full-bleed cards: no floating island */
+  .page-center {
+    padding: 0;
+    justify-content: flex-start;
+    align-items: stretch;
+    min-height: 100dvh;
+  }
+
+  .page-center > .card {
+    border-radius: 0;
+    min-height: 100dvh;
+    padding: 40px 24px calc(40px + var(--safe-bottom));
+    padding-top: calc(40px + var(--safe-top));
+    box-shadow: none;
+    flex: 1;
+  }
+
+  /* Bigger tap targets */
+  .btn {
+    min-height: 54px;
+  }
+
+  .btn-lg {
+    min-height: 62px;
+    font-size: 1.1rem;
+  }
+}

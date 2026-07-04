@@ -13,17 +13,23 @@
             placeholder="e.g. ABC123"
             maxlength="6"
             autocomplete="off"
-            style="text-transform: uppercase; letter-spacing: 4px; font-size: 1.4rem; text-align: center;"
+            inputmode="text"
+            class="code-input"
           />
         </div>
         <div class="field">
-          <label>Your Nickname</label>
-          <input v-model="nickname" type="text" placeholder="e.g. QuizKing" maxlength="20" />
+          <label>Team Name</label>
+          <input
+            v-model="nickname"
+            type="text"
+            placeholder="e.g. Quiz Kings"
+            maxlength="20"
+          />
         </div>
 
         <p v-if="error" class="error">{{ error }}</p>
 
-        <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px" :disabled="loading">
+        <button class="btn btn-primary btn-lg" style="width:100%;margin-top:16px" :disabled="loading">
           {{ loading ? 'Joining...' : 'Join Game 🎮' }}
         </button>
       </form>
@@ -89,29 +95,44 @@ function join() {
   color: var(--text-muted);
   font-size: 0.9rem;
   margin-bottom: 20px;
+  min-height: 44px;
+  line-height: 44px;
 }
 
 .back-link:hover { color: var(--text); }
 
-.logo { margin-bottom: 28px; font-size: 1.8rem; }
+.logo { margin-bottom: 32px; }
 
-.field {
-  margin-bottom: 16px;
-}
+.field { margin-bottom: 18px; }
 
 .field label {
   display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 700;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+}
+
+.code-input {
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  font-size: 1.5rem !important;
+  text-align: center;
+  font-weight: 700;
 }
 
 .error {
   color: var(--danger);
   font-size: 0.9rem;
-  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+/* Mobile: push form toward top, extra spacing feels roomier */
+@media (max-width: 480px) {
+  .logo { margin-bottom: 40px; }
+  .field { margin-bottom: 24px; }
+  .back-link { margin-bottom: 28px; }
 }
 </style>
