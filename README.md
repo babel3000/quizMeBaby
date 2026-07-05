@@ -10,13 +10,13 @@ A real-time multiplayer pub quiz game. A host controls the game from one device 
 |---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Join](docs/screenshots/join.png) | ![Host Setup](docs/screenshots/host-setup.png) |
 
-| Host Lobby & Round Setup | Language |
-|---|---|
-| ![Host Lobby](docs/screenshots/host-lobby.png) | ![Language](docs/screenshots/language.png) |
-
-| Player Lobby | Player — Question | Player — Results |
+| Host Lobby | Host — Round Setup | Language |
 |---|---|---|
-| ![Play Lobby](docs/screenshots/play-lobby.png) | ![Play Question](docs/screenshots/play-question.png) | ![Play Results](docs/screenshots/play-results.png) |
+| ![Host Lobby](docs/screenshots/host-lobby.png) | ![Host Round Setup](docs/screenshots/host-round-setup.png) | ![Language](docs/screenshots/language.png) |
+
+| Player Lobby | Player — Question | Player — Answered | Player — Results |
+|---|---|---|---|
+| ![Play Lobby](docs/screenshots/play-lobby.png) | ![Play Question](docs/screenshots/play-question.png) | ![Play Answered](docs/screenshots/play-answered.png) | ![Play Results](docs/screenshots/play-results.png) |
 
 | Host — Question | Host — Results |
 |---|---|
@@ -38,6 +38,8 @@ A real-time multiplayer pub quiz game. A host controls the game from one device 
 - **Rich scoring system** — speed bonuses, first-answer bonuses, wrong-answer penalties, skip mechanics, and round types
 - **Skip mechanic** — teams can skip questions, but consecutive skips increase the penalty for future wrong answers; blocked after 4 skips in a row
 - **Round types** — host sets the scoring mode per round; it applies for the entire round and can only be changed between rounds
+- **Streak tracking** — consecutive correct answers are tracked and displayed: a 🔥 chip appears on the player's answer screen, a streak badge shows on the scoreboard, and the round type **Hot Streak** amplifies streaks with a stacking multiplier
+- **Rank movement** — after each question the scoreboard shows ▲/▼ arrows indicating how many positions each team moved since the previous question
 
 ---
 
