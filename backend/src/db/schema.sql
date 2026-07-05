@@ -24,6 +24,17 @@ CREATE TABLE questions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE question_translations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+  locale TEXT NOT NULL,
+  text TEXT NOT NULL,
+  correct_answer TEXT NOT NULL,
+  options JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (question_id, locale)
+);
+
 CREATE TABLE game_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code VARCHAR(6) UNIQUE NOT NULL,
