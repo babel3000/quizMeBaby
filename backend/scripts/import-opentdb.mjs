@@ -1,7 +1,7 @@
 /**
  * Import questions from Open Trivia Database and translate to PT-PT.
  * Run from the backend directory:
- *   cd backend && node ../scripts/import-opentdb.mjs
+ *   cd pub-quiz/backend && node scripts/import-opentdb.mjs
  *
  * Requires backend/.env with SUPABASE_URL, SUPABASE_SERVICE_KEY, ANTHROPIC_API_KEY.
  * Inserts English questions into `questions`, PT-PT translations into `question_translations`.
