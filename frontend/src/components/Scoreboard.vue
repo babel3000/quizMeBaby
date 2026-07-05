@@ -33,7 +33,12 @@
         class="player-row"
         :class="{ highlighted: highlightId && p.id === highlightId }"
       >
-        <span class="rank" :class="rankClass(i)">{{ i + 1 }}</span>
+        <div class="rank-col">
+          <span class="rank" :class="rankClass(i)">{{ i + 1 }}</span>
+          <span v-if="showDelta && rankMovement.get(p.id) !== 0" class="rank-move" :class="rankMovement.get(p.id) > 0 ? 'move-up' : 'move-down'">
+            {{ rankMovement.get(p.id) > 0 ? '▲' : '▼' }}
+          </span>
+        </div>
         <span class="name">
           {{ p.nickname }}
           <span v-if="p.correctStreak >= 2" class="streak-badge">
@@ -59,6 +64,18 @@ const props = defineProps({
   highlightId: { type: String, default: null },
   compact: { type: Boolean, default: true },
   showDelta: { type: Boolean, default: false },
+})
+
+const rankMovement = computed(() => {
+  const previous = [...props.players]
+    .map(t => ({ id: t.id, prev: t.score - (t.delta ?? 0) }))
+    .sort((a, b) => b.prev - a.prev)
+  const prevRankMap = new Map(previous.map((t, i) => [t.id, i + 1]))
+  return new Map(props.players.map((t, i) => {
+    const cur = i + 1
+    const prev = prevRankMap.get(t.id) ?? cur
+    return [t.id, prev - cur]
+  }))
 })
 
 function deltaClass(p) {
@@ -119,11 +136,17 @@ function rankClass(i) {
   border-radius: var(--radius); transition: background 0.2s;
 }
 .player-row.highlighted { background: rgba(233,69,96,0.15); border: 1px solid var(--primary); }
+.rank-col {
+  display: flex; flex-direction: column; align-items: center; gap: 1px; flex-shrink: 0;
+}
 .rank {
   width: 28px; height: 28px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.8rem; font-weight: 700; background: var(--surface); flex-shrink: 0;
+  font-size: 0.8rem; font-weight: 700; background: var(--surface);
 }
+.rank-move { font-size: 0.6rem; font-weight: 700; line-height: 1; }
+.move-up   { color: var(--success); }
+.move-down { color: var(--danger); }
 .rank-gold { background: #ffd700; color: #000; }
 .rank-silver { background: #c0c0c0; color: #000; }
 .rank-bronze { background: #cd7f32; color: #fff; }

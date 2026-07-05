@@ -10,10 +10,19 @@
 
         <div class="st-body">
           <div v-for="(team, i) in scoreboard" :key="team.id" class="st-row">
-            <!-- Rank -->
-            <span class="st-rank" :class="rankClass(i)">
-              {{ i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 }}
-            </span>
+            <!-- Rank + movement -->
+            <div class="st-rank-col">
+              <span class="st-rank" :class="rankClass(i)">
+                {{ i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 }}
+              </span>
+              <span
+                v-if="rankMovement.get(team.id) !== 0"
+                class="st-move"
+                :class="rankMovement.get(team.id) > 0 ? 'move-up' : 'move-down'"
+              >
+                {{ rankMovement.get(team.id) > 0 ? '▲' : '▼' }}{{ Math.abs(rankMovement.get(team.id)) }}
+              </span>
+            </div>
 
             <!-- Name + badges -->
             <div class="st-name-col">
@@ -71,6 +80,19 @@ const props = defineProps({
 })
 
 defineEmits(['hide', 'next-question', 'new-round', 'end-game'])
+
+// Reconstruct previous ranks from score - delta, then compute movement
+const rankMovement = computed(() => {
+  const previous = [...props.scoreboard]
+    .map(t => ({ id: t.id, prev: t.score - (t.delta ?? 0) }))
+    .sort((a, b) => b.prev - a.prev)
+  const prevRankMap = new Map(previous.map((t, i) => [t.id, i + 1]))
+  return new Map(props.scoreboard.map((t, i) => {
+    const cur = i + 1
+    const prev = prevRankMap.get(t.id) ?? cur
+    return [t.id, prev - cur]  // positive = moved up, negative = moved down
+  }))
+})
 
 const ROUND_TYPE_LABELS = {
   normal:      'Normal round',
@@ -147,13 +169,16 @@ function deltaLabel(team) {
 
 .st-row {
   display: grid;
-  grid-template-columns: 48px 1fr auto auto;
+  grid-template-columns: 56px 1fr auto auto;
   align-items: center; gap: 12px;
   padding: 14px 16px;
   background: var(--surface);
   border-radius: var(--radius);
 }
 
+.st-rank-col {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
 .st-rank {
   font-size: 1.3rem; text-align: center; font-weight: 700;
 }
@@ -164,6 +189,11 @@ function deltaLabel(team) {
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto;
 }
+.st-move {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.01em;
+}
+.move-up   { color: var(--success); }
+.move-down { color: var(--danger); }
 
 .st-name-col {
   display: flex; flex-direction: column; gap: 4px; min-width: 0;
