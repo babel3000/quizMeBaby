@@ -41,6 +41,15 @@
         >{{ cat.icon }} {{ cat.name }}</button>
       </div>
 
+      <!-- Difficulty filter -->
+      <div class="filter-tabs filter-tabs-sm">
+        <button class="tab" :class="{ active: selectedDifficulty === null }" @click="setDifficulty(null)">All difficulties</button>
+        <button class="tab diff-easy"   :class="{ active: selectedDifficulty === 'easy' }"   @click="setDifficulty('easy')">Easy</button>
+        <button class="tab diff-medium" :class="{ active: selectedDifficulty === 'medium' }" @click="setDifficulty('medium')">Medium</button>
+        <button class="tab diff-hard"   :class="{ active: selectedDifficulty === 'hard' }"   @click="setDifficulty('hard')">Hard</button>
+        <button class="tab diff-unset"  :class="{ active: selectedDifficulty === 'unset' }"  @click="setDifficulty('unset')">Unrated</button>
+      </div>
+
       <!-- Loading -->
       <div v-if="loading" class="empty-state">Loading questions…</div>
 
@@ -59,6 +68,7 @@
           <div class="q-meta">
             <span class="badge" :class="typeBadgeClass(q.type)">{{ typeLabel(q.type) }}</span>
             <span v-if="q.categories" class="cat-label">{{ q.categories.icon }} {{ q.categories.name }}</span>
+            <span v-if="q.difficulty" class="diff-badge" :class="`diff-${q.difficulty}`">{{ q.difficulty }}</span>
             <span class="points-label">{{ q.points }} pts · {{ q.time_limit }}s</span>
           </div>
           <p class="q-text">{{ q.text }}</p>
@@ -185,6 +195,17 @@
               <input v-model="form.media_url" type="text" :placeholder="mediaPlaceholder" />
             </div>
 
+            <!-- Difficulty -->
+            <div class="field">
+              <label>Difficulty</label>
+              <div class="diff-grid">
+                <label v-for="d in difficulties" :key="d.value" class="diff-option" :class="[`diff-opt-${d.value}`, { active: form.difficulty === d.value }]">
+                  <input type="radio" v-model="form.difficulty" :value="d.value" hidden />
+                  {{ d.label }}
+                </label>
+              </div>
+            </div>
+
             <!-- Points & time -->
             <div class="field-row">
               <div class="field">
@@ -241,6 +262,7 @@ const categories = ref([])
 const loading = ref(true)
 const saving = ref(false)
 const selectedCategory = ref(null)
+const selectedDifficulty = ref(null)
 const search = ref('')
 const page = ref(1)
 const total = ref(null)
@@ -273,6 +295,13 @@ const questionTypes = [
   { value: 'image',           label: 'Image',           icon: '🖼️' },
 ]
 
+const difficulties = [
+  { value: null,     label: '— Unrated' },
+  { value: 'easy',   label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard',   label: 'Hard' },
+]
+
 const defaultForm = () => ({
   type: 'multiple_choice',
   category_id: '',
@@ -282,6 +311,7 @@ const defaultForm = () => ({
   media_url: '',
   points: 1000,
   time_limit: 30,
+  difficulty: null,
 })
 
 const form = ref(defaultForm())
@@ -295,6 +325,11 @@ const mediaPlaceholder = computed(() => {
 function buildParams(extraOffset) {
   const params = new URLSearchParams({ limit: PAGE_SIZE, offset: extraOffset ?? (page.value - 1) * PAGE_SIZE })
   if (selectedCategory.value) params.set('category_id', selectedCategory.value)
+  if (selectedDifficulty.value === 'unset') {
+    params.set('difficulty_null', 'true')
+  } else if (selectedDifficulty.value) {
+    params.set('difficulty', selectedDifficulty.value)
+  }
   if (search.value.trim()) params.set('search', search.value.trim())
   return params.toString()
 }
@@ -321,6 +356,12 @@ async function loadData() {
 
 function setCategory(id) {
   selectedCategory.value = id
+  page.value = 1
+  fetchPage()
+}
+
+function setDifficulty(d) {
+  selectedDifficulty.value = d
   page.value = 1
   fetchPage()
 }
@@ -357,6 +398,7 @@ function openEdit(q) {
     media_url: q.media_url ?? '',
     points: q.points,
     time_limit: q.time_limit,
+    difficulty: q.difficulty ?? null,
   }
   formError.value = ''
   showModal.value = true
@@ -401,6 +443,7 @@ async function saveQuestion() {
     media_url: f.media_url.trim() || null,
     points: f.points,
     time_limit: f.time_limit,
+    difficulty: f.difficulty || null,
   }
 
   saving.value = true
@@ -471,7 +514,9 @@ onMounted(loadData)
 .search-input:focus { outline: none; border-color: var(--primary); }
 .search-input::placeholder { color: var(--text-muted); }
 
-.filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filter-tabs-sm { margin-bottom: 24px; }
+.filter-tabs-sm .tab { font-size: 0.8rem; padding: 5px 12px; }
 .tab {
   padding: 7px 16px; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
   background: var(--surface); color: var(--text-muted); cursor: pointer;
@@ -479,6 +524,10 @@ onMounted(loadData)
 }
 .tab.active { background: var(--primary); color: white; border-color: var(--primary); }
 .tab:hover:not(.active) { border-color: var(--surface-2); color: var(--text); }
+.filter-tabs-sm .diff-easy.active   { background: rgba(44,182,125,0.15); color: var(--success); border-color: var(--success); }
+.filter-tabs-sm .diff-medium.active { background: rgba(255,159,67,0.15); color: #ff9f43; border-color: #ff9f43; }
+.filter-tabs-sm .diff-hard.active   { background: rgba(233,69,96,0.15);  color: var(--danger); border-color: var(--danger); }
+.filter-tabs-sm .diff-unset.active  { background: var(--surface-2); color: var(--text); border-color: var(--text-muted); }
 
 .empty-state { text-align: center; padding: 80px 0; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; }
 
@@ -489,6 +538,14 @@ onMounted(loadData)
 .badge-video { background: rgba(255,82,82,0.2); color: #ff8a80; }
 .badge-image { background: rgba(0,188,212,0.2); color: #80deea; }
 .cat-label { color: var(--text-muted); font-size: 0.85rem; }
+.diff-badge {
+  font-size: 0.72rem; font-weight: 700; padding: 2px 8px;
+  border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.diff-easy   { background: rgba(44,182,125,0.15); color: var(--success); }
+.diff-medium { background: rgba(255,159,67,0.15); color: #ff9f43; }
+.diff-hard   { background: rgba(233,69,96,0.15);  color: var(--danger); }
+.diff-unset  { background: var(--surface-2); color: var(--text-muted); }
 .points-label { color: var(--text-muted); font-size: 0.8rem; margin-left: auto; }
 .q-text { font-size: 1.05rem; font-weight: 600; margin-bottom: 10px; }
 .q-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -543,6 +600,17 @@ select option { background: var(--surface-2); }
 }
 .type-option.active { border-color: var(--primary); background: rgba(233,69,96,0.1); }
 .type-icon { font-size: 1.1rem; }
+
+.diff-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.diff-option {
+  padding: 7px 16px; border-radius: 999px; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer; border: 2px solid transparent; transition: all 0.15s;
+  background: var(--surface-2); color: var(--text-muted);
+}
+.diff-option.active { border-color: currentColor; }
+.diff-opt-easy.active   { color: var(--success); background: rgba(44,182,125,0.1); }
+.diff-opt-medium.active { color: #ff9f43;        background: rgba(255,159,67,0.1); }
+.diff-opt-hard.active   { color: var(--danger);  background: rgba(233,69,96,0.1); }
 
 .options-editor { display: flex; flex-direction: column; gap: 8px; }
 .option-row { display: flex; align-items: center; gap: 8px; }

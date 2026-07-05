@@ -4,11 +4,13 @@ import supabase from '../db/client.js'
 const router = Router()
 
 router.get('/', async (req, res) => {
-  const { category_id, type, search, limit = 20, offset = 0 } = req.query
+  const { category_id, type, difficulty, search, limit = 20, offset = 0 } = req.query
   let query = supabase.from('questions').select('*, categories(name, type, icon)')
 
   if (category_id) query = query.eq('category_id', category_id)
   if (type) query = query.eq('type', type)
+  if (difficulty) query = query.eq('difficulty', difficulty)
+  if (req.query.difficulty_null === 'true') query = query.is('difficulty', null)
   if (search) query = query.ilike('text', `%${search}%`)
 
   const { data, error } = await query.range(Number(offset), Number(offset) + Number(limit) - 1)
@@ -17,11 +19,13 @@ router.get('/', async (req, res) => {
 })
 
 router.get('/count', async (req, res) => {
-  const { category_id, type, search } = req.query
+  const { category_id, type, difficulty, search } = req.query
   let query = supabase.from('questions').select('*', { count: 'exact', head: true })
 
   if (category_id) query = query.eq('category_id', category_id)
   if (type) query = query.eq('type', type)
+  if (difficulty) query = query.eq('difficulty', difficulty)
+  if (req.query.difficulty_null === 'true') query = query.is('difficulty', null)
   if (search) query = query.ilike('text', `%${search}%`)
 
   const { count, error } = await query
@@ -35,6 +39,20 @@ router.get('/categories', async (_req, res) => {
   res.json(data)
 })
 
+router.post('/categories', async (req, res) => {
+  const { name, type, icon } = req.body
+  if (!name || !type) return res.status(400).json({ error: 'name and type are required' })
+
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({ name, type, icon })
+    .select()
+    .single()
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.status(201).json(data)
+})
+
 router.get('/:id', async (req, res) => {
   const { data, error } = await supabase
     .from('questions')
@@ -46,14 +64,14 @@ router.get('/:id', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
-  const { text, type, category_id, correct_answer, options, media_url, points, time_limit } = req.body
+  const { text, type, category_id, correct_answer, options, media_url, points, time_limit, difficulty } = req.body
   if (!text || !type || !correct_answer) {
     return res.status(400).json({ error: 'text, type and correct_answer are required' })
   }
 
   const { data, error } = await supabase
     .from('questions')
-    .insert({ text, type, category_id, correct_answer, options, media_url, points, time_limit })
+    .insert({ text, type, category_id, correct_answer, options, media_url, points, time_limit, difficulty })
     .select()
     .single()
 
@@ -62,7 +80,7 @@ router.post('/', async (req, res) => {
 })
 
 router.put('/:id', async (req, res) => {
-  const allowed = ['text', 'type', 'category_id', 'correct_answer', 'options', 'media_url', 'points', 'time_limit']
+  const allowed = ['text', 'type', 'category_id', 'correct_answer', 'options', 'media_url', 'points', 'time_limit', 'difficulty']
   const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)))
 
   const { data, error } = await supabase

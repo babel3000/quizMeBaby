@@ -20,6 +20,7 @@ CREATE TABLE questions (
   options JSONB,
   points INT DEFAULT 1000,
   time_limit INT DEFAULT 30,
+  difficulty TEXT CHECK (difficulty IN ('easy', 'medium', 'hard')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
