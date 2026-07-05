@@ -27,8 +27,8 @@
       <!-- Sticky top bar -->
       <div class="q-topbar">
         <span class="badge badge-primary">{{ $t('game.questionOf', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</span>
-        <span v-if="myConsecutiveSkips > 0" class="skip-mult-chip">
-          ⚡ ×{{ nextSkipMultiplier }}
+        <span v-if="myConsecutiveSkips > 0" class="skip-count-chip" :class="{ danger: myConsecutiveSkips >= 4 }">
+          ↷ {{ $t('game.skipCount', { n: myConsecutiveSkips }) }}
         </span>
         <Timer :seconds="game.timeLimit" :key="game.questionIndex" class="q-timer" />
       </div>
@@ -62,12 +62,14 @@
         </div>
 
         <!-- Skip -->
-        <button class="skip-btn" @click="skipQuestion">
-          <span class="skip-label">{{ $t('game.skip') }}</span>
-          <span v-if="myConsecutiveSkips > 0" class="skip-detail">
-            {{ $t('game.nextCorrect', { mult: (1 + 0.25 * Math.min(myConsecutiveSkips + 1, 4)).toFixed(2).replace(/\.?0+$/, '') }) }}
-          </span>
-          <span v-if="myConsecutiveSkips >= 4" class="skip-maxed">{{ $t('game.multiplierMaxed') }}</span>
+        <button class="skip-btn" :class="{ 'skip-blocked': myConsecutiveSkips >= 4 }" :disabled="myConsecutiveSkips >= 4" @click="skipQuestion">
+          <span v-if="myConsecutiveSkips >= 4" class="skip-label skip-must">{{ $t('game.skipMustAnswer') }}</span>
+          <template v-else>
+            <span class="skip-label">{{ $t('game.skip') }}</span>
+            <span v-if="myConsecutiveSkips > 0" class="skip-detail skip-danger">
+              {{ $t('game.skipPenaltyWarning', { mult: nextSkipPenaltyMult }) }}
+            </span>
+          </template>
         </button>
       </div>
 
@@ -83,8 +85,18 @@
         <p class="feedback-label">
           {{ game.myAnswer.skipped ? $t('game.skipped') : game.myAnswer.isCorrect ? $t('game.correct') : $t('game.wrong') }}
         </p>
-        <p v-if="game.myAnswer.skipped && myConsecutiveSkips > 0" class="feedback-sub skip-glow">
-          {{ $t('game.nextSkipBonus', { mult: nextSkipMultiplier }) }}
+
+        <!-- After skip: warn about pending penalty -->
+        <p v-if="game.myAnswer.skipped && myConsecutiveSkips > 0" class="feedback-sub skip-danger-text">
+          {{ $t('game.skipPenaltyActive', { n: myConsecutiveSkips, s: myConsecutiveSkips === 1 ? '' : 's', mult: nextSkipPenaltyMult }) }}
+        </p>
+        <p v-if="game.myAnswer.skipped && myConsecutiveSkips >= 4" class="feedback-sub skip-must-text">
+          {{ $t('game.skipMustAnswer') }}
+        </p>
+
+        <!-- After answer / forced penalty -->
+        <p v-if="game.myAnswer.forcedPenalty" class="feedback-sub skip-danger-text">
+          {{ $t('game.skipForcedPenalty') }}
         </p>
         <p v-else-if="game.myAnswer.pointsAwarded > 0" class="feedback-pts">
           +{{ game.myAnswer.pointsAwarded.toLocaleString() }}
@@ -92,6 +104,7 @@
         <p v-else-if="game.myAnswer.pointsAwarded < 0" class="feedback-pts penalty">
           {{ game.myAnswer.pointsAwarded.toLocaleString() }}
         </p>
+
         <div v-if="!game.myAnswer.isCorrect && !game.myAnswer.skipped && game.myAnswer.correctAnswer" class="correct-answer-reveal">
           <span class="ca-label">{{ $t('results.correctAnswer') }}</span>
           <span class="ca-value">{{ game.myAnswer.correctAnswer }}</span>
@@ -166,9 +179,11 @@ const initials = computed(() =>
   player.nickname.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 )
 
-const nextSkipMultiplier = computed(() =>
-  (1 + 0.25 * Math.min(myConsecutiveSkips.value, 4)).toFixed(2).replace(/\.?0+$/, '')
-)
+// Penalty multiplier if a wrong answer is given after current skip streak
+const nextSkipPenaltyMult = computed(() => {
+  const mult = 1 + 0.25 * myConsecutiveSkips.value
+  return mult.toFixed(2).replace(/\.?0+$/, '')
+})
 
 const onGameStarted = ({ totalQuestions }) => {
   game.totalQuestions = totalQuestions
@@ -185,7 +200,7 @@ const onAnswerReceived = result => {
 }
 const onSkipConfirmed = ({ consecutiveSkips }) => {
   myConsecutiveSkips.value = consecutiveSkips
-  game.setMyAnswer({ skipped: true, isCorrect: false, pointsAwarded: 0 })
+  game.setMyAnswer({ skipped: true, isCorrect: false, pointsAwarded: 0, forcedPenalty: false })
 }
 const onResultsRevealed = data => game.setResults(data)
 const onGameEnded = data => game.endGame(data)
@@ -290,9 +305,12 @@ function skipQuestion() {
   flex-shrink: 0;
 }
 
-.skip-mult-chip {
+.skip-count-chip {
   font-size: 0.78rem; font-weight: 700; color: #ffc832;
   background: rgba(255,200,50,0.12); padding: 3px 10px; border-radius: 999px;
+}
+.skip-count-chip.danger {
+  color: var(--danger); background: rgba(233,69,96,0.15);
 }
 
 .q-timer { margin-left: auto; }
@@ -370,10 +388,15 @@ function skipQuestion() {
   min-height: 54px;
   -webkit-tap-highlight-color: transparent;
 }
-.skip-btn:hover, .skip-btn:active { border-color: #ffc832; color: #ffc832; }
+.skip-btn:not(:disabled):hover,
+.skip-btn:not(:disabled):active { border-color: #ffc832; color: #ffc832; }
+.skip-btn.skip-blocked {
+  border-color: var(--danger); color: var(--danger); opacity: 0.9; cursor: not-allowed;
+}
 .skip-label { font-size: 0.9rem; font-weight: 700; }
-.skip-detail { font-size: 0.75rem; color: #ffc832; }
-.skip-maxed { font-size: 0.75rem; color: var(--danger); }
+.skip-detail { font-size: 0.75rem; }
+.skip-danger { color: var(--danger); }
+.skip-must { font-size: 0.85rem; font-weight: 700; }
 
 /* ── Post-answer feedback ───────────────── */
 .feedback-screen {
@@ -392,8 +415,9 @@ function skipQuestion() {
 .feedback-label  { font-size: 2rem; font-weight: 900; }
 .feedback-pts    { font-size: 2.6rem; font-weight: 900; color: var(--gold); }
 .feedback-pts.penalty { color: var(--danger); }
-.feedback-sub    { font-size: 1rem; font-weight: 600; }
-.skip-glow       { color: #ffc832; }
+.feedback-sub       { font-size: 1rem; font-weight: 600; }
+.skip-danger-text   { color: var(--danger); }
+.skip-must-text     { font-size: 0.95rem; font-weight: 700; color: var(--danger); }
 .feedback-waiting { font-size: 0.9rem; color: var(--text-muted); margin-top: 8px; }
 
 .correct-answer-reveal {

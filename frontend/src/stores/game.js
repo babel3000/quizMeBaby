@@ -15,8 +15,10 @@ export const useGameStore = defineStore('game', () => {
   const roundType = ref('normal')
   const scoreboardVisible = ref(false)
   const language = ref('en')
+  const hostPlaysAsTeam = ref(false)
 
   function setLanguage(lang) { language.value = lang }
+  function setHostPlaysAsTeam(val) { hostPlaysAsTeam.value = val }
   function setCode(c) { code.value = c }
   function setStatus(s) { status.value = s }
   function setPlayers(list) { players.value = list }
@@ -61,12 +63,13 @@ export const useGameStore = defineStore('game', () => {
     roundType.value = 'normal'
     scoreboardVisible.value = false
     language.value = 'en'
+    hostPlaysAsTeam.value = false
   }
 
   return {
     code, status, players, currentQuestion, questionIndex,
     totalQuestions, scoreboard, lastResult, myAnswer, timeLimit,
-    roundType, scoreboardVisible, language,
-    setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset, setLanguage,
+    roundType, scoreboardVisible, language, hostPlaysAsTeam,
+    setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset, setLanguage, setHostPlaysAsTeam,
   }
 })

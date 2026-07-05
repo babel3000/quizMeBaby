@@ -29,6 +29,7 @@ export class GameSession {
     this.roundType = 'normal'
     this.firstCorrectThisQuestion = false
     this.language = 'en'
+    this.hostPlaysAsTeam = false
   }
 
   addPlayer(socketId, nickname, isHost = false) {
@@ -60,7 +61,7 @@ export class GameSession {
 
   getScoreboard() {
     return this.getPlayers()
-      .filter(p => !p.isHost)
+      .filter(p => !p.isHost || this.hostPlaysAsTeam)
       .sort((a, b) => b.score - a.score)
       .map((p, i) => ({
         id: p.id,
@@ -138,9 +139,6 @@ export class GameSession {
       if (isFirst) this.firstCorrectThisQuestion = true
       if (isFirst && this.roundType !== 'lone_wolf') subtotal += FIRST_ANSWER_BONUS
 
-      // Skip multiplier: each consecutive skip adds 0.25x (max 4 skips = 2x)
-      const skipMult = 1 + 0.25 * Math.min(player.consecutiveSkips, 4)
-
       let roundMult = 1
       if (this.roundType === 'double_down') {
         roundMult = 2
@@ -150,12 +148,17 @@ export class GameSession {
         roundMult = isFirst ? 1 : 0
       }
 
-      pointsAwarded = Math.round(subtotal * skipMult * roundMult)
+      pointsAwarded = Math.round(subtotal * roundMult)
       player.correctStreak++
       player.consecutiveSkips = 0
     } else {
-      // Safety Net suppresses the wrong-answer penalty
-      pointsAwarded = this.roundType === 'safety_net' ? 0 : -WRONG_PENALTY
+      if (this.roundType === 'safety_net') {
+        pointsAwarded = 0
+      } else {
+        // Each consecutive skip increases the wrong-answer penalty by 25% per skip
+        const skipPenaltyMult = 1 + 0.25 * player.consecutiveSkips
+        pointsAwarded = -Math.round(WRONG_PENALTY * skipPenaltyMult)
+      }
       player.correctStreak = 0
       player.consecutiveSkips = 0
     }
@@ -182,7 +185,10 @@ export class GameSession {
     const player = this.players.get(socketId)
     if (!player) return null
 
-    player.consecutiveSkips = Math.min(player.consecutiveSkips + 1, 4)
+    // Block skip if player has already hit the 4-skip limit
+    if (player.consecutiveSkips >= 4) return null
+
+    player.consecutiveSkips++
     player.correctStreak = 0
     player.skippedThisQuestion = true
 
@@ -198,7 +204,7 @@ export class GameSession {
 
     return {
       consecutiveSkips: player.consecutiveSkips,
-      nextMultiplier: 1 + 0.25 * player.consecutiveSkips,
+      penaltyMultiplier: 1 + 0.25 * player.consecutiveSkips,
     }
   }
 
@@ -221,8 +227,36 @@ export class GameSession {
     }
 
     const currentQ = this.questions[this.currentQuestionIndex]
+
+    // Auto-penalise players who hit the 4-skip limit and didn't answer before time ran out
+    for (const [socketId, player] of this.players.entries()) {
+      if (player.consecutiveSkips >= 4 && !this.questionAnswers.has(socketId)) {
+        const penalty = Math.round(WRONG_PENALTY * (1 + 0.25 * player.consecutiveSkips))
+        player.score -= penalty
+        player.consecutiveSkips = 0
+        player.correctStreak = 0
+        this.questionAnswers.set(socketId, {
+          answer: null,
+          isCorrect: false,
+          pointsAwarded: -penalty,
+          timeTaken: null,
+          skipped: false,
+          forcedPenalty: true,
+          consecutiveSkips: 0,
+          correctStreak: 0,
+        })
+        io.to(socketId).emit('answer_received', {
+          isCorrect: false,
+          pointsAwarded: -penalty,
+          consecutiveSkips: 0,
+          correctStreak: 0,
+          forcedPenalty: true,
+        })
+      }
+    }
+
     const playerResults = this.getPlayers()
-      .filter(p => !p.isHost)
+      .filter(p => !p.isHost || this.hostPlaysAsTeam)
       .map(p => {
         const ans = this.questionAnswers.get(p.socketId)
         return {

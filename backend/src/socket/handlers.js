@@ -2,16 +2,19 @@ import { createSession, getSession, findSessionBySocket } from './gameSession.js
 import supabase from '../db/client.js'
 
 export function registerHandlers(io, socket) {
-  socket.on('create_session', async ({ nickname } = {}) => {
+  socket.on('create_session', async ({ nickname, teamName } = {}) => {
     console.log(`[create_session] socket=${socket.id} nickname=${nickname}`)
     const session = createSession()
-    const player = session.addPlayer(socket.id, nickname?.trim() || 'Host', true)
+    const displayName = teamName?.trim() || nickname?.trim() || 'Host'
+    const player = session.addPlayer(socket.id, displayName, true)
+    if (teamName?.trim()) session.hostPlaysAsTeam = true
     socket.join(session.code)
     socket.emit('session_created', {
       code: session.code,
       player,
       players: session.getPlayers(),
       language: session.language,
+      hostPlaysAsTeam: session.hostPlaysAsTeam,
     })
   })
 
@@ -85,15 +88,16 @@ export function registerHandlers(io, socket) {
     })
 
     const player = session.players.get(socket.id)
-    const nonHostPlayers = session.getPlayers().filter(p => !p.isHost)
-    socket.to(session.hostSocketId).emit('player_answered', {
+    const activePlayers = session.getPlayers().filter(p => !p.isHost || session.hostPlaysAsTeam)
+    // Use io.to so the host receives count updates even when they submitted the answer themselves
+    io.to(session.hostSocketId).emit('player_answered', {
       playerId: player?.id,
       nickname: player?.nickname,
       totalAnswered: session.questionAnswers.size,
-      totalPlayers: nonHostPlayers.length,
+      totalPlayers: activePlayers.length,
     })
 
-    if (session.questionAnswers.size >= nonHostPlayers.length) {
+    if (session.questionAnswers.size >= activePlayers.length) {
       session.revealResults(io)
     }
   })
@@ -111,16 +115,16 @@ export function registerHandlers(io, socket) {
     })
 
     const player = session.players.get(socket.id)
-    const nonHostPlayers = session.getPlayers().filter(p => !p.isHost)
-    socket.to(session.hostSocketId).emit('player_answered', {
+    const activePlayers = session.getPlayers().filter(p => !p.isHost || session.hostPlaysAsTeam)
+    io.to(session.hostSocketId).emit('player_answered', {
       playerId: player?.id,
       nickname: player?.nickname,
       skipped: true,
       totalAnswered: session.questionAnswers.size,
-      totalPlayers: nonHostPlayers.length,
+      totalPlayers: activePlayers.length,
     })
 
-    if (session.questionAnswers.size >= nonHostPlayers.length) {
+    if (session.questionAnswers.size >= activePlayers.length) {
       session.revealResults(io)
     }
   })

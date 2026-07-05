@@ -11,6 +11,18 @@
           <input v-model="hostName" type="text" :placeholder="$t('host.yourNamePlaceholder')" maxlength="20" />
         </div>
 
+        <div class="play-as-team-toggle" @click="hostPlaysAsTeam = !hostPlaysAsTeam">
+          <div class="toggle-track" :class="{ active: hostPlaysAsTeam }">
+            <div class="toggle-thumb" />
+          </div>
+          <span class="toggle-label">{{ $t('host.playAsTeam') }}</span>
+        </div>
+
+        <div v-if="hostPlaysAsTeam" class="field" style="margin-top:12px">
+          <label>{{ $t('host.teamNameLabel') }}</label>
+          <input v-model="teamName" type="text" :placeholder="$t('host.teamNamePlaceholder')" maxlength="20" />
+        </div>
+
         <p v-if="error" class="error">{{ error }}</p>
 
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px" @click="createSession" :disabled="loading">
@@ -97,10 +109,10 @@
       <div class="lobby-actions">
         <button
           class="btn btn-primary btn-lg"
-          :disabled="nonHostPlayers.length === 0"
+          :disabled="nonHostPlayers.length === 0 && !game.hostPlaysAsTeam"
           @click="startGame"
         >
-          {{ $t('host.startGame') }} ({{ nonHostPlayers.length }} {{ nonHostPlayers.length !== 1 ? $t('host.teams') : $t('host.team') }})
+          {{ $t('host.startGame') }} ({{ nonHostPlayers.length + (game.hostPlaysAsTeam ? 1 : 0) }} {{ (nonHostPlayers.length + (game.hostPlaysAsTeam ? 1 : 0)) !== 1 ? $t('host.teams') : $t('host.team') }})
         </button>
         <RouterLink :to="`/screen/${game.code}`" target="_blank" class="btn btn-secondary">
           {{ $t('host.openScreen') }}
@@ -125,8 +137,41 @@
       <!-- Question in progress -->
       <div v-else-if="game.status === 'question'" class="question-panel">
         <QuestionCard :question="game.currentQuestion" :show-answer="false" />
+
+        <!-- Host answer area (only when playing as team) -->
+        <div v-if="game.hostPlaysAsTeam" class="host-answer-area">
+          <div v-if="!hostAnswer">
+            <div v-if="game.currentQuestion?.type === 'multiple_choice'" class="host-options-grid">
+              <button
+                v-for="(opt, i) in game.currentQuestion.options"
+                :key="opt"
+                class="host-option-btn"
+                :class="`color-${i}`"
+                @click="submitHostAnswer(opt)"
+              >{{ opt }}</button>
+            </div>
+            <div v-else class="host-text-answer">
+              <input
+                v-model="hostTextAnswer"
+                type="text"
+                placeholder="Type your answer…"
+                @keyup.enter="submitHostAnswer(hostTextAnswer)"
+              />
+              <button class="btn btn-primary" @click="submitHostAnswer(hostTextAnswer)" :disabled="!hostTextAnswer.trim()">
+                Submit
+              </button>
+            </div>
+          </div>
+          <div v-else class="host-answered-badge" :class="hostAnswer.isCorrect ? 'correct' : 'incorrect'">
+            {{ hostAnswer.isCorrect ? '✓' : '✗' }}
+            {{ hostAnswer.isCorrect ? $t('game.correct') : $t('game.wrong') }}
+            <span v-if="hostAnswer.pointsAwarded > 0" class="host-pts">+{{ hostAnswer.pointsAwarded.toLocaleString() }}</span>
+            <span v-else-if="hostAnswer.pointsAwarded < 0" class="host-pts penalty">{{ hostAnswer.pointsAwarded.toLocaleString() }}</span>
+          </div>
+        </div>
+
         <div class="answer-progress">
-          <span>{{ $t('game.answered', { n: answeredCount, total: nonHostPlayers.length }) }}</span>
+          <span>{{ $t('game.answered', { n: answeredCount, total: totalPlayers }) }}</span>
           <Timer :seconds="game.timeLimit" :key="game.questionIndex" @expired="revealResults" />
         </div>
         <button class="btn btn-secondary" @click="revealResults">{{ $t('results.revealAnswer') }}</button>
@@ -265,10 +310,15 @@ const player = usePlayerStore()
 const socket = useSocket()
 
 const hostName = ref('Quiz Master')
+const teamName = ref('')
+const hostPlaysAsTeam = ref(false)
+const hostAnswer = ref(null)
+const hostTextAnswer = ref('')
 const error = ref('')
 const loading = ref(false)
 const countdown = ref(3)
 const answeredCount = ref(0)
+const totalPlayers = ref(0)
 const categories = ref([])
 const configuringNewRound = ref(false)
 
@@ -295,11 +345,12 @@ const roundTypeLabel = computed(() => t(`roundTypes.${game.roundType}`) ?? game.
 const joinUrl = computed(() => window.location.origin + '/join')
 const nonHostPlayers = computed(() => game.players.filter(p => !p.isHost))
 
-const onSessionCreated = ({ code, player: me, players, language }) => {
+const onSessionCreated = ({ code, player: me, players, language, hostPlaysAsTeam: hpt }) => {
   player.setPlayer(me)
   game.setCode(code)
   game.setPlayers(players)
   game.setLanguage(language ?? 'en')
+  game.setHostPlaysAsTeam(hpt ?? false)
   game.setStatus('lobby')
   loading.value = false
 }
@@ -313,8 +364,18 @@ const onGameStarted = ({ totalQuestions, roundType }) => {
   let c = 3
   const timer = setInterval(() => { c--; countdown.value = c; if (c <= 0) clearInterval(timer) }, 1000)
 }
-const onQuestion = data => { answeredCount.value = 0; game.setQuestion(data) }
-const onPlayerAnswered = ({ totalAnswered }) => { answeredCount.value = totalAnswered }
+const onQuestion = data => {
+  answeredCount.value = 0
+  hostAnswer.value = null
+  hostTextAnswer.value = ''
+  totalPlayers.value = nonHostPlayers.value.length + (game.hostPlaysAsTeam ? 1 : 0)
+  game.setQuestion(data)
+}
+const onPlayerAnswered = ({ totalAnswered, totalPlayers: tp }) => {
+  answeredCount.value = totalAnswered
+  if (tp !== undefined) totalPlayers.value = tp
+}
+const onAnswerReceived = result => { hostAnswer.value = result }
 const onResultsRevealed = data => game.setResults(data)
 const onGameEnded = data => game.endGame(data)
 const onRoundTypeChanged = ({ roundType }) => { game.roundType = roundType }
@@ -333,6 +394,7 @@ onMounted(async () => {
   socket.on('game_started', onGameStarted)
   socket.on('question', onQuestion)
   socket.on('player_answered', onPlayerAnswered)
+  socket.on('answer_received', onAnswerReceived)
   socket.on('results_revealed', onResultsRevealed)
   socket.on('game_ended', onGameEnded)
   socket.on('round_type_changed', onRoundTypeChanged)
@@ -353,6 +415,7 @@ onUnmounted(() => {
   socket.off('game_started', onGameStarted)
   socket.off('question', onQuestion)
   socket.off('player_answered', onPlayerAnswered)
+  socket.off('answer_received', onAnswerReceived)
   socket.off('results_revealed', onResultsRevealed)
   socket.off('game_ended', onGameEnded)
   socket.off('round_type_changed', onRoundTypeChanged)
@@ -369,7 +432,10 @@ function createSession() {
   error.value = ''
   if (!hostName.value.trim()) { error.value = t('host.nameRequired'); return }
   loading.value = true
-  socket.emit('create_session', { nickname: hostName.value.trim() })
+  socket.emit('create_session', {
+    nickname: hostName.value.trim(),
+    teamName: hostPlaysAsTeam.value ? (teamName.value.trim() || hostName.value.trim()) : undefined,
+  })
   const timeout = setTimeout(() => {
     if (loading.value) {
       loading.value = false
@@ -377,6 +443,11 @@ function createSession() {
     }
   }, 8000)
   socket.once('session_created', () => clearTimeout(timeout))
+}
+
+function submitHostAnswer(answer) {
+  if (!answer?.trim() || hostAnswer.value) return
+  socket.emit('submit_answer', { code: game.code, answer: answer.trim() })
 }
 
 function startGame() {
@@ -569,4 +640,71 @@ function resetGame() {
 .rt-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
 .end-card { max-width: 600px; width: 100%; }
+
+/* ── Play-as-team toggle ────────────────────── */
+.play-as-team-toggle {
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; user-select: none; margin-top: 4px;
+}
+.toggle-track {
+  width: 42px; height: 24px; border-radius: 999px;
+  background: var(--surface-2); border: 2px solid var(--surface-2);
+  position: relative; transition: background 0.2s, border-color 0.2s; flex-shrink: 0;
+}
+.toggle-track.active { background: var(--primary); border-color: var(--primary); }
+.toggle-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: white; position: absolute; top: 2px; left: 2px;
+  transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.toggle-track.active .toggle-thumb { transform: translateX(18px); }
+.toggle-label { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+
+/* ── Host answer area (in-game) ─────────────── */
+.host-answer-area {
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 2px solid var(--surface-2);
+}
+
+.host-options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.host-option-btn {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 0.9rem; font-weight: 700;
+  border: none; cursor: pointer;
+  text-align: left;
+  transition: filter 0.15s, transform 0.1s;
+}
+.host-option-btn:hover { filter: brightness(1.1); }
+.host-option-btn:active { transform: scale(0.97); filter: brightness(0.9); }
+.host-option-btn.color-0 { background: #e84060; color: #fff; }
+.host-option-btn.color-1 { background: #1368ce; color: #fff; }
+.host-option-btn.color-2 { background: #d89e00; color: #fff; }
+.host-option-btn.color-3 { background: #26890c; color: #fff; }
+
+.host-text-answer { display: flex; gap: 8px; }
+.host-text-answer input {
+  flex: 1; padding: 8px 12px; border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text);
+  border: 2px solid var(--surface-2); font-size: 0.9rem;
+}
+.host-text-answer input:focus { outline: none; border-color: var(--primary); }
+
+.host-answered-badge {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 1rem; padding: 10px 14px;
+  border-radius: var(--radius);
+}
+.host-answered-badge.correct { background: rgba(44,182,125,0.15); color: var(--success); }
+.host-answered-badge.incorrect { background: rgba(233,69,96,0.15); color: var(--primary); }
+.host-pts { margin-left: auto; font-size: 1.1rem; }
+.host-pts.penalty { color: var(--danger); }
 </style>
