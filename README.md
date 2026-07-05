@@ -54,19 +54,35 @@ points = round((basePoints + speedBonus + firstAnswerBonus) × roundMultiplier)
 | Base points | Set per question (default 1 000) |
 | Speed bonus | Up to +50% of base, linear from answer time 0 → time limit |
 | First-answer bonus | +100 flat (first team to answer correctly per question) |
-| Wrong-answer penalty | −250 pts (suppressed in Safety Net round) |
+| Wrong-answer penalty | 250–750 pts depending on speed (suppressed in Safety Net round) |
+
+### Wrong-answer penalty
+
+The penalty scales with how fast you answered — answering quickly and getting it wrong costs more.
+
+```
+penalty = 500 × (0.5 + speedRatio) × skipPenaltyMultiplier
+```
+
+| Answer speed | Speed factor | Base penalty |
+|---|---|---|
+| Instant | ×1.5 | −750 pts |
+| Mid-timer | ×1.0 | −500 pts |
+| Last second | ×0.5 | −250 pts |
 
 ### Skip penalty
 
-Skipping is allowed but punishes teams that answer wrong afterwards. Consecutive skips stack the penalty multiplier on the next wrong answer. After 4 consecutive skips, the team is **forced to answer** the next question — if they don't, they receive the full penalty automatically when time runs out.
+Skipping is allowed but punishes teams that answer wrong afterwards. Consecutive skips stack a multiplier onto the wrong-answer penalty. After 4 consecutive skips, the team is **forced to answer** the next question — if they don't, they receive the penalty automatically when time runs out (at minimum speed factor ×0.5 since they waited).
 
-| Consecutive skips | Wrong-answer penalty multiplier |
-|---|---|
-| 0 | ×1.00 (−250 pts) |
-| 1 | ×1.25 (−313 pts) |
-| 2 | ×1.50 (−375 pts) |
-| 3 | ×1.75 (−438 pts) |
-| 4 (max — must answer) | ×2.00 (−500 pts) |
+| Consecutive skips | Skip multiplier | Example mid-timer penalty |
+|---|---|---|
+| 0 | ×1.00 | −500 pts |
+| 1 | ×1.25 | −625 pts |
+| 2 | ×1.50 | −750 pts |
+| 3 | ×1.75 | −875 pts |
+| 4 (max — must answer) | ×2.00 | −1 000 pts |
+
+Both multipliers stack: `penalty = 500 × speedFactor × skipMultiplier`.
 
 Answering (correctly or wrongly) resets the consecutive skip count to 0. The scoreboard shows each team's current skip count so other teams are aware.
 

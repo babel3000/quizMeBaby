@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 const sessions = new Map()
 
-const WRONG_PENALTY = 250
+const WRONG_PENALTY = 500
 const FIRST_ANSWER_BONUS = 100
 const VALID_ROUND_TYPES = ['normal', 'hot_streak', 'safety_net', 'lone_wolf', 'double_down']
 
@@ -155,9 +155,11 @@ export class GameSession {
       if (this.roundType === 'safety_net') {
         pointsAwarded = 0
       } else {
-        // Each consecutive skip increases the wrong-answer penalty by 25% per skip
+        // Faster wrong answers cost more — mirrors the speed bonus for correct answers
+        const speedRatio = Math.max(0, 1 - timeTaken / timeLimit)
+        const speedMult = 0.5 + speedRatio  // 0.5 (slow) → 1.5 (instant)
         const skipPenaltyMult = 1 + 0.25 * player.consecutiveSkips
-        pointsAwarded = -Math.round(WRONG_PENALTY * skipPenaltyMult)
+        pointsAwarded = -Math.round(WRONG_PENALTY * speedMult * skipPenaltyMult)
       }
       player.correctStreak = 0
       player.consecutiveSkips = 0
@@ -231,7 +233,8 @@ export class GameSession {
     // Auto-penalise players who hit the 4-skip limit and didn't answer before time ran out
     for (const [socketId, player] of this.players.entries()) {
       if (player.consecutiveSkips >= 4 && !this.questionAnswers.has(socketId)) {
-        const penalty = Math.round(WRONG_PENALTY * (1 + 0.25 * player.consecutiveSkips))
+        // speedRatio=0: they waited the full timer, so minimum speed factor (×0.5)
+        const penalty = Math.round(WRONG_PENALTY * 0.5 * (1 + 0.25 * player.consecutiveSkips))
         player.score -= penalty
         player.consecutiveSkips = 0
         player.correctStreak = 0
