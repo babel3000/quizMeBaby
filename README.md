@@ -4,6 +4,30 @@ A real-time multiplayer pub quiz game. A host controls the game from one device 
 
 ---
 
+## Screenshots
+
+| Home | Join | Host Setup |
+|---|---|---|
+| ![Home](docs/screenshots/home.png) | ![Join](docs/screenshots/join.png) | ![Host Setup](docs/screenshots/host-setup.png) |
+
+| Host Lobby & Round Setup | Language |
+|---|---|
+| ![Host Lobby](docs/screenshots/host-lobby.png) | ![Language](docs/screenshots/language.png) |
+
+| Player Lobby | Player — Question | Player — Results |
+|---|---|---|
+| ![Play Lobby](docs/screenshots/play-lobby.png) | ![Play Question](docs/screenshots/play-question.png) | ![Play Results](docs/screenshots/play-results.png) |
+
+| Host — Question | Host — Results |
+|---|---|
+| ![Host Question](docs/screenshots/host-question.png) | ![Host Results](docs/screenshots/host-results.png) |
+
+| Question Manager |
+|---|
+| ![Manage](docs/screenshots/manage.png) |
+
+---
+
 ## Features
 
 - **Live multiplayer** — host creates a room, teams join with a 6-character code
