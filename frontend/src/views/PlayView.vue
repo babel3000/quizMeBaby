@@ -27,6 +27,9 @@
       <!-- Sticky top bar -->
       <div class="q-topbar">
         <span class="badge badge-primary">{{ $t('game.questionOf', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</span>
+        <span v-if="myStreak >= 2" class="streak-chip" :class="{ 'streak-hot': game.roundType === 'hot_streak' }">
+          🔥 {{ $t('game.streakCount', { n: myStreak }) }}
+        </span>
         <span v-if="myConsecutiveSkips > 0" class="skip-count-chip" :class="{ danger: myConsecutiveSkips >= 4 }">
           ↷ {{ $t('game.skipCount', { n: myConsecutiveSkips }) }}
         </span>
@@ -100,6 +103,9 @@
         </p>
         <p v-else-if="game.myAnswer.pointsAwarded > 0" class="feedback-pts">
           +{{ game.myAnswer.pointsAwarded.toLocaleString() }}
+        </p>
+        <p v-if="game.myAnswer.isCorrect && myStreak >= 2" class="feedback-streak">
+          {{ $t('game.streakLabel', { n: myStreak }) }}
         </p>
         <p v-else-if="game.myAnswer.pointsAwarded < 0" class="feedback-pts penalty">
           {{ game.myAnswer.pointsAwarded.toLocaleString() }}
@@ -305,12 +311,23 @@ function skipQuestion() {
   flex-shrink: 0;
 }
 
+.streak-chip {
+  font-size: 0.78rem; font-weight: 700; color: #ff9f43;
+  background: rgba(255,159,67,0.12); padding: 3px 10px; border-radius: 999px;
+}
+.streak-chip.streak-hot {
+  color: #ff6b35; background: rgba(255,107,53,0.18);
+  box-shadow: 0 0 0 1px rgba(255,107,53,0.3);
+}
 .skip-count-chip {
   font-size: 0.78rem; font-weight: 700; color: #ffc832;
   background: rgba(255,200,50,0.12); padding: 3px 10px; border-radius: 999px;
 }
 .skip-count-chip.danger {
   color: var(--danger); background: rgba(233,69,96,0.15);
+}
+.feedback-streak {
+  font-size: 1rem; font-weight: 700; color: #ff9f43; margin-top: -4px;
 }
 
 .q-timer { margin-left: auto; }

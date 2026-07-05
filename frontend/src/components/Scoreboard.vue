@@ -36,6 +36,9 @@
         <span class="rank" :class="rankClass(i)">{{ i + 1 }}</span>
         <span class="name">
           {{ p.nickname }}
+          <span v-if="p.correctStreak >= 2" class="streak-badge">
+            🔥{{ p.correctStreak }}
+          </span>
           <span v-if="p.consecutiveSkips > 0" class="skip-badge" :class="{ 'skip-badge-danger': p.consecutiveSkips >= 4 }">
             ↷{{ p.consecutiveSkips }}/4
           </span>
@@ -125,6 +128,10 @@ function rankClass(i) {
 .rank-silver { background: #c0c0c0; color: #000; }
 .rank-bronze { background: #cd7f32; color: #fff; }
 .name { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.streak-badge {
+  font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  background: rgba(255,159,67,0.15); color: #ff9f43; flex-shrink: 0;
+}
 .skip-badge {
   font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
   background: rgba(255,200,50,0.15); color: #ffc832; flex-shrink: 0;

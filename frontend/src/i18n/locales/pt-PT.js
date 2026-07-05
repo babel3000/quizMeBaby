@@ -52,6 +52,8 @@ export default {
     waitingForResults: 'À espera dos resultados…',
     skip: 'Saltar ↷',
     skipCount: '{n}/4 saltos',
+    streakCount: '{n} seguidos',
+    streakLabel: '🔥 {n} seguidas!',
     skipPenaltyWarning: '⚠ resposta errada custa ×{mult} + velocidade',
     skipMustAnswer: '⚠ Tens de responder — senão és penalizado!',
     correct: 'Correto!',

@@ -52,6 +52,8 @@ export default {
     waitingForResults: 'Waiting for results…',
     skip: 'Skip ↷',
     skipCount: '{n}/4 skips',
+    streakCount: '{n} streak',
+    streakLabel: '🔥 {n} in a row!',
     skipPenaltyWarning: '⚠ wrong answer costs ×{mult} + speed',
     skipMustAnswer: '⚠ Must answer — or get penalised!',
     correct: 'Correct!',
