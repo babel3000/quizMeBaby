@@ -35,6 +35,21 @@ export function registerHandlers(io, socket) {
     socket.to(upper).emit('player_joined', { player, players: session.getPlayers() })
   })
 
+  // Screen view: join the room as an observer only — no player record created
+  socket.on('join_screen', ({ code } = {}) => {
+    const upper = code?.toUpperCase()
+    const session = getSession(upper)
+    if (!session) return socket.emit('join_error', { message: 'Room not found.' })
+
+    socket.join(upper)
+    socket.emit('joined_session', {
+      code: upper,
+      player: null,
+      players: session.getPlayers(),
+      language: session.language,
+    })
+  })
+
   socket.on('start_game', async ({ code, numQuestions = 10, roundType = 'normal', categoryId } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return

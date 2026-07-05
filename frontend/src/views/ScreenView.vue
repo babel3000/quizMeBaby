@@ -81,7 +81,7 @@ const onRoundTypeChanged = ({ roundType }) => { game.roundType = roundType }
 const onLanguageChanged = ({ language }) => { game.setLanguage(language); setLocale(language) }
 
 onMounted(() => {
-  socket.emit('join_session', { code: code.value, nickname: '__screen__' })
+  socket.emit('join_screen', { code: code.value })
   socket.on('joined_session', onJoined)
   socket.on('player_joined', onPlayerJoined)
   socket.on('player_left', onPlayerLeft)
