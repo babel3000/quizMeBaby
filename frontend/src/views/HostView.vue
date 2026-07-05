@@ -689,4 +689,34 @@ function resetGame() {
 .host-answered-badge.incorrect { background: rgba(233,69,96,0.15); color: var(--primary); }
 .host-pts { margin-left: auto; font-size: 1.1rem; }
 .host-pts.penalty { color: var(--danger); }
+
+/* ── Mobile overrides ───────────────────────── */
+@media (max-width: 480px) {
+  /* Lobby — compact header */
+  .lobby { padding: 20px 16px; }
+  .lobby-header .logo { display: none; }
+  .lobby-header { margin-bottom: 20px; }
+  .room-code { font-size: 2.4rem; letter-spacing: 5px; }
+  .room-hint { font-size: 0.82rem; }
+  .setup-section { margin-top: 16px; padding: 16px; gap: 14px; }
+  .lobby-actions { flex-direction: column; margin-top: 20px; }
+  .lobby-actions .btn { width: 100%; text-align: center; }
+
+  /* Active game — fill the viewport */
+  .host-game { padding: 16px 16px 24px; }
+  .host-header { margin-bottom: 16px; }
+
+  /* Question panel — push controls to bottom */
+  .question-panel {
+    display: flex; flex-direction: column;
+    min-height: calc(100dvh - 72px);
+  }
+  .answer-progress { margin-top: auto; padding-top: 16px; }
+
+  /* Results panel — tighter spacing, full-width buttons */
+  .results-panel { gap: 14px; }
+  .results-actions { flex-direction: column-reverse; align-items: stretch; }
+  .results-actions .btn { width: 100%; text-align: center; }
+  .new-round-panel { padding: 14px; }
+}
 </style>
