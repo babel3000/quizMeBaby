@@ -88,7 +88,10 @@
               class="rt-pill"
               :class="{ active: roundConfig.roundType === rt.value }"
               @click="roundConfig.roundType = rt.value"
-            >{{ rt.label }}</button>
+            >
+              <span class="rt-pill-label">{{ rt.label }}</span>
+              <span class="rt-pill-desc">{{ rt.desc }}</span>
+            </button>
           </div>
         </div>
 
@@ -181,20 +184,6 @@
       <div v-else-if="game.status === 'results'" class="results-panel">
         <QuestionCard :question="game.currentQuestion" :correct-answer="game.lastResult?.correctAnswer" :show-answer="true" />
 
-        <!-- Round type selector (mid-round adjustment) -->
-        <div v-if="!game.lastResult?.isLastQuestion" class="round-type-section">
-          <p class="section-label">{{ $t('roundTypes.label') }}</p>
-          <div class="rt-selector">
-            <button
-              v-for="rt in roundTypes"
-              :key="rt.value"
-              class="rt-btn"
-              :class="{ active: game.roundType === rt.value }"
-              @click="setRoundType(rt.value)"
-            >{{ rt.label }}</button>
-          </div>
-        </div>
-
         <Scoreboard :players="game.scoreboard" :show-delta="true" />
 
         <!-- New round config (shown after last question) -->
@@ -241,7 +230,10 @@
                 class="rt-pill"
                 :class="{ active: roundConfig.roundType === rt.value }"
                 @click="roundConfig.roundType = rt.value"
-              >{{ rt.label }}</button>
+              >
+                <span class="rt-pill-label">{{ rt.label }}</span>
+                <span class="rt-pill-desc">{{ rt.desc }}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -334,11 +326,11 @@ const LANGUAGES = [
 ]
 
 const roundTypes = computed(() => [
-  { value: 'normal',      label: t('roundTypes.normal') },
-  { value: 'hot_streak',  label: t('roundTypes.hot_streak') },
-  { value: 'safety_net',  label: t('roundTypes.safety_net') },
-  { value: 'lone_wolf',   label: t('roundTypes.lone_wolf') },
-  { value: 'double_down', label: t('roundTypes.double_down') },
+  { value: 'normal',      label: t('roundTypes.normal'),      desc: t('roundTypes.normalDesc') },
+  { value: 'hot_streak',  label: t('roundTypes.hot_streak'),  desc: t('roundTypes.hot_streakDesc') },
+  { value: 'safety_net',  label: t('roundTypes.safety_net'),  desc: t('roundTypes.safety_netDesc') },
+  { value: 'lone_wolf',   label: t('roundTypes.lone_wolf'),   desc: t('roundTypes.lone_wolfDesc') },
+  { value: 'double_down', label: t('roundTypes.double_down'), desc: t('roundTypes.double_downDesc') },
 ])
 
 const roundTypeLabel = computed(() => t(`roundTypes.${game.roundType}`) ?? game.roundType)
@@ -482,10 +474,6 @@ function endGame() {
   socket.emit('end_game', { code: game.code })
 }
 
-function setRoundType(type) {
-  socket.emit('set_round_type', { code: game.code, roundType: type })
-}
-
 function showScoreboard() {
   socket.emit('show_scoreboard', { code: game.code })
 }
@@ -586,14 +574,18 @@ function resetGame() {
 }
 .category-select:focus { outline: none; border-color: var(--primary); }
 
-.rt-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.rt-pills { display: flex; flex-direction: column; gap: 8px; }
 .rt-pill {
-  flex: 1; padding: 8px 10px; border-radius: var(--radius); font-size: 0.82rem; font-weight: 600;
-  text-align: center; background: var(--surface-2); color: var(--text-muted);
+  width: 100%; padding: 10px 14px; border-radius: var(--radius);
+  text-align: left; background: var(--surface-2); color: var(--text-muted);
   border: 2px solid transparent; cursor: pointer; transition: all 0.15s;
+  display: flex; flex-direction: column; gap: 3px;
 }
 .rt-pill:hover { border-color: var(--primary); color: var(--text); }
-.rt-pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+.rt-pill.active { background: rgba(233,69,96,0.12); color: var(--text); border-color: var(--primary); }
+.rt-pill-label { font-size: 0.88rem; font-weight: 700; }
+.rt-pill-desc { font-size: 0.75rem; font-weight: 400; line-height: 1.3; opacity: 0.75; }
+.rt-pill.active .rt-pill-desc { opacity: 0.9; }
 
 .lang-pills { display: flex; gap: 8px; }
 .lang-pill {
@@ -628,16 +620,6 @@ function resetGame() {
 
 .results-panel { display: flex; flex-direction: column; gap: 20px; }
 .results-actions { display: flex; justify-content: flex-end; gap: 10px; align-items: center; flex-wrap: wrap; }
-
-.round-type-section { }
-.rt-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.rt-btn {
-  flex: 1; padding: 8px 10px; border-radius: var(--radius); font-size: 0.82rem; font-weight: 600;
-  text-align: center; background: var(--surface-2); color: var(--text-muted);
-  border: 2px solid transparent; cursor: pointer; transition: all 0.15s;
-}
-.rt-btn:hover { border-color: var(--primary); color: var(--text); }
-.rt-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
 .end-card { max-width: 600px; width: 100%; }
 

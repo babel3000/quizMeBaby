@@ -83,10 +83,15 @@ export default {
   roundTypes: {
     label: 'Tipo de ronda',
     normal: 'Normal',
+    normalDesc: 'Pontuação padrão. Respostas certas dão pontos, a primeira resposta certa recebe um bónus.',
     hot_streak: '🔥 Sequência Quente',
+    hot_streakDesc: 'Cada resposta certa consecutiva multiplica os teus pontos — mantém a sequência!',
     safety_net: '🛡️ Rede de Segurança',
+    safety_netDesc: 'Respostas erradas não custam pontos. Uma ronda tranquila para ganhar confiança.',
     lone_wolf: '🐺 Lobo Solitário',
+    lone_wolfDesc: 'Só a primeira resposta certa pontua — e pontua muito. A velocidade é tudo.',
     double_down: '⚡ Dobrar Aposta',
+    double_downDesc: 'Todos os valores de pontos são duplicados. Risco máximo, recompensa máxima.',
   },
 
   screen: {

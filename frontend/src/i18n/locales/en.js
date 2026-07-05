@@ -83,10 +83,15 @@ export default {
   roundTypes: {
     label: 'Round type',
     normal: 'Normal',
+    normalDesc: 'Standard scoring. Correct answers earn points, first correct answer gets a bonus.',
     hot_streak: '🔥 Hot Streak',
+    hot_streakDesc: 'Each consecutive correct answer multiplies your points — keep the streak alive!',
     safety_net: '🛡️ Safety Net',
+    safety_netDesc: 'Wrong answers cost no points. A forgiving round to build confidence.',
     lone_wolf: '🐺 Lone Wolf',
+    lone_wolfDesc: 'Only the very first correct answer scores — and it scores big. Speed is everything.',
     double_down: '⚡ Double Down',
+    double_downDesc: 'All point values are doubled. Maximum risk, maximum reward.',
   },
 
   screen: {
