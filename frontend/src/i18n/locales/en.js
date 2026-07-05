@@ -34,6 +34,13 @@ export default {
     team: 'team',
     teams: 'teams',
     language: 'Language',
+    roundSetup: 'Round Setup',
+    numQuestions: 'Questions',
+    category: 'Category',
+    allCategories: 'All categories',
+    newRound: 'New Round',
+    startRound: 'Start Round →',
+    cancelNewRound: 'Cancel',
   },
 
   game: {
@@ -64,10 +71,12 @@ export default {
     nextQuestion: 'Next Question →',
     endGame: 'End Game 🏆',
     showScoreboard: '📊 Show Scoreboard',
+    roundComplete: 'Round complete!',
+    waitingForNextRound: 'Waiting for host to start the next round…',
   },
 
   roundTypes: {
-    label: 'Round type for next question',
+    label: 'Round type',
     normal: 'Normal',
     hot_streak: '🔥 Hot Streak',
     safety_net: '🛡️ Safety Net',

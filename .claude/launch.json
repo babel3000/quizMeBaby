@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pub-quiz",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["dev.sh"],
+      "port": 5174,
+      "autoPort": false,
+      "cwd": "/Users/silvaabe/Documents/Claudette/pub-quiz"
+    }
+  ]
+}

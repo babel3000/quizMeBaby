@@ -81,8 +81,9 @@ export class GameSession {
     return safeQuestion
   }
 
-  startGame(questions) {
+  startGame(questions, roundType = 'normal') {
     this.questions = questions
+    this.roundType = roundType
     this.status = 'active'
     this.currentQuestionIndex = -1
   }
@@ -169,6 +170,7 @@ export class GameSession {
       skipped: false,
       consecutiveSkips: player.consecutiveSkips,
       correctStreak: player.correctStreak,
+      correctAnswer: isCorrect ? undefined : currentQ.correct_answer,
     }
     this.questionAnswers.set(socketId, result)
     return result

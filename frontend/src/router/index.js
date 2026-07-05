@@ -20,6 +20,7 @@ const router = createRouter({
       },
     },
     { path: '/home', component: HomeView },
+    { path: '/language', component: LanguageView },
     { path: '/host', component: HostView },
     { path: '/join', component: JoinView },
     { path: '/play', component: PlayView },

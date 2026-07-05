@@ -16,7 +16,7 @@
         <RouterLink to="/manage" class="manage-link">
           {{ $t('home.manage') }}
         </RouterLink>
-        <RouterLink to="/" class="lang-change-link">
+        <RouterLink to="/language" class="lang-change-link">
           {{ currentLangFlag }} {{ $t('home.changeLanguage') }}
         </RouterLink>
       </div>

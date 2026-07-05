@@ -1,0 +1,11 @@
+{
+  "name": "pub-quiz",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bash dev.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

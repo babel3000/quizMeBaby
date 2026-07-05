@@ -4,15 +4,29 @@ import supabase from '../db/client.js'
 const router = Router()
 
 router.get('/', async (req, res) => {
-  const { category_id, type, limit = 20, offset = 0 } = req.query
+  const { category_id, type, search, limit = 20, offset = 0 } = req.query
   let query = supabase.from('questions').select('*, categories(name, type, icon)')
 
   if (category_id) query = query.eq('category_id', category_id)
   if (type) query = query.eq('type', type)
+  if (search) query = query.ilike('text', `%${search}%`)
 
   const { data, error } = await query.range(Number(offset), Number(offset) + Number(limit) - 1)
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
+})
+
+router.get('/count', async (req, res) => {
+  const { category_id, type, search } = req.query
+  let query = supabase.from('questions').select('*', { count: 'exact', head: true })
+
+  if (category_id) query = query.eq('category_id', category_id)
+  if (type) query = query.eq('type', type)
+  if (search) query = query.ilike('text', `%${search}%`)
+
+  const { count, error } = await query
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ count })
 })
 
 router.get('/categories', async (_req, res) => {

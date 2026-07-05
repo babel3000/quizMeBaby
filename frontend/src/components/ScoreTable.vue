@@ -45,12 +45,13 @@
 
         <div v-if="isHost" class="st-footer">
           <button class="btn btn-secondary" @click="$emit('hide')">Hide</button>
-          <button
-            v-if="!isLastQuestion"
-            class="btn btn-primary"
-            @click="$emit('next-question')"
-          >Next question →</button>
-          <button v-else class="btn btn-primary" @click="$emit('end-game')">End Game 🏆</button>
+          <template v-if="!isLastQuestion">
+            <button class="btn btn-primary" @click="$emit('next-question')">Next question →</button>
+          </template>
+          <template v-else>
+            <button class="btn btn-secondary" @click="$emit('new-round')">New Round</button>
+            <button class="btn btn-primary" @click="$emit('end-game')">End Game 🏆</button>
+          </template>
         </div>
 
       </div>
@@ -69,7 +70,7 @@ const props = defineProps({
   isLastQuestion: { type: Boolean, default: false },
 })
 
-defineEmits(['hide', 'next-question', 'end-game'])
+defineEmits(['hide', 'next-question', 'new-round', 'end-game'])
 
 const ROUND_TYPE_LABELS = {
   normal:      'Normal round',

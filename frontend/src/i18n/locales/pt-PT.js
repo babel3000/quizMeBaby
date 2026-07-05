@@ -34,6 +34,13 @@ export default {
     team: 'equipa',
     teams: 'equipas',
     language: 'Idioma',
+    roundSetup: 'Configuração da Ronda',
+    numQuestions: 'Perguntas',
+    category: 'Categoria',
+    allCategories: 'Todas as categorias',
+    newRound: 'Nova Ronda',
+    startRound: 'Iniciar Ronda →',
+    cancelNewRound: 'Cancelar',
   },
 
   game: {
@@ -64,10 +71,12 @@ export default {
     nextQuestion: 'Próxima Pergunta →',
     endGame: 'Terminar Jogo 🏆',
     showScoreboard: '📊 Mostrar Classificação',
+    roundComplete: 'Ronda completa!',
+    waitingForNextRound: 'À espera que o anfitrião inicie a próxima ronda…',
   },
 
   roundTypes: {
-    label: 'Tipo de ronda para a próxima pergunta',
+    label: 'Tipo de ronda',
     normal: 'Normal',
     hot_streak: '🔥 Sequência Quente',
     safety_net: '🛡️ Rede de Segurança',

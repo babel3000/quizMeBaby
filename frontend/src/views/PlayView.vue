@@ -92,6 +92,10 @@
         <p v-else-if="game.myAnswer.pointsAwarded < 0" class="feedback-pts penalty">
           {{ game.myAnswer.pointsAwarded.toLocaleString() }}
         </p>
+        <div v-if="!game.myAnswer.isCorrect && !game.myAnswer.skipped && game.myAnswer.correctAnswer" class="correct-answer-reveal">
+          <span class="ca-label">{{ $t('results.correctAnswer') }}</span>
+          <span class="ca-value">{{ game.myAnswer.correctAnswer }}</span>
+        </div>
         <p class="feedback-waiting">{{ $t('game.waitingForResults') }}</p>
       </div>
     </div>
@@ -108,7 +112,12 @@
           <span v-if="game.myAnswer?.pointsAwarded > 0">+{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
           <span v-else-if="game.myAnswer?.pointsAwarded < 0" class="penalty-text">{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
         </div>
-        <Scoreboard :players="game.scoreboard" :highlight-id="player.id" />
+        <Scoreboard :players="game.scoreboard" :highlight-id="player.id" :show-delta="true" />
+
+        <div v-if="game.lastResult?.isLastQuestion" class="round-complete-notice">
+          <p class="rc-title">{{ $t('results.roundComplete') }}</p>
+          <p class="rc-sub">{{ $t('results.waitingForNextRound') }}</p>
+        </div>
       </div>
     </div>
 
@@ -387,6 +396,14 @@ function skipQuestion() {
 .skip-glow       { color: #ffc832; }
 .feedback-waiting { font-size: 0.9rem; color: var(--text-muted); margin-top: 8px; }
 
+.correct-answer-reveal {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: rgba(44,182,125,0.1); border: 1px solid rgba(44,182,125,0.3);
+  border-radius: var(--radius); padding: 12px 20px; margin-top: 4px;
+}
+.ca-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--success); }
+.ca-value { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+
 /* ── Results ────────────────────────────── */
 .results-card { max-width: 600px; width: 100%; }
 .results-answer {
@@ -407,6 +424,15 @@ function skipQuestion() {
 .my-result.incorrect{ background: rgba(233,69,96,0.15);  color: var(--danger); }
 .my-result.skipped  { background: rgba(255,200,50,0.1);  color: #ffc832; }
 .penalty-text { color: var(--danger); }
+
+/* ── Round complete notice ──────────────────── */
+.round-complete-notice {
+  text-align: center; padding: 20px 16px;
+  background: rgba(233,69,96,0.08); border-radius: var(--radius);
+  border: 1px solid rgba(233,69,96,0.2);
+}
+.rc-title { font-size: 1.2rem; font-weight: 800; color: var(--primary); margin-bottom: 6px; }
+.rc-sub { font-size: 0.9rem; color: var(--text-muted); }
 
 /* ── End screen ─────────────────────────── */
 .end-card { max-width: 600px; width: 100%; }

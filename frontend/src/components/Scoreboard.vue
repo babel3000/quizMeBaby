@@ -35,6 +35,7 @@
       >
         <span class="rank" :class="rankClass(i)">{{ i + 1 }}</span>
         <span class="name">{{ p.nickname }}</span>
+        <span v-if="showDelta && p.delta !== undefined" class="delta" :class="deltaClass(p)">{{ deltaLabel(p) }}</span>
         <span class="score">{{ p.score.toLocaleString() }}</span>
       </div>
     </div>
@@ -49,7 +50,22 @@ const props = defineProps({
   showPodium: { type: Boolean, default: false },
   highlightId: { type: String, default: null },
   compact: { type: Boolean, default: true },
+  showDelta: { type: Boolean, default: false },
 })
+
+function deltaClass(p) {
+  if (p.skippedThisQuestion) return 'delta-skip'
+  if (p.delta > 0) return 'delta-pos'
+  if (p.delta < 0) return 'delta-neg'
+  return 'delta-zero'
+}
+
+function deltaLabel(p) {
+  if (p.skippedThisQuestion) return '—'
+  if (p.delta > 0) return `+${p.delta.toLocaleString()}`
+  if (p.delta < 0) return p.delta.toLocaleString()
+  return '—'
+}
 
 const displayPlayers = computed(() => props.showPodium ? props.players.slice(3) : props.players)
 
@@ -104,5 +120,10 @@ function rankClass(i) {
 .rank-silver { background: #c0c0c0; color: #000; }
 .rank-bronze { background: #cd7f32; color: #fff; }
 .name { flex: 1; font-weight: 600; }
+.delta { font-size: 0.85rem; font-weight: 700; min-width: 56px; text-align: right; }
+.delta-pos  { color: var(--success); }
+.delta-neg  { color: var(--danger); }
+.delta-zero { color: var(--text-muted); }
+.delta-skip { color: var(--text-muted); }
 .score { font-weight: 700; color: var(--gold); }
 </style>

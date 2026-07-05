@@ -7,24 +7,37 @@
         <div>
           <RouterLink to="/" class="back-link">← Back</RouterLink>
           <h1 class="page-title">Question Manager</h1>
-          <p class="subtitle">{{ filteredQuestions.length }} question{{ filteredQuestions.length !== 1 ? 's' : '' }}</p>
+          <p class="subtitle">
+            <template v-if="total !== null">
+              {{ total }} question{{ total !== 1 ? 's' : '' }}
+              <template v-if="search || selectedCategory"> matching filters</template>
+            </template>
+            <template v-else>Loading…</template>
+          </p>
         </div>
         <button class="btn btn-primary" @click="openAdd">+ Add Question</button>
       </div>
 
+      <!-- Search -->
+      <div class="search-row">
+        <input
+          v-model="search"
+          class="search-input"
+          type="search"
+          placeholder="Search questions…"
+          @input="onSearchInput"
+        />
+      </div>
+
       <!-- Category filter -->
       <div class="filter-tabs">
-        <button
-          class="tab"
-          :class="{ active: selectedCategory === null }"
-          @click="selectedCategory = null"
-        >All</button>
+        <button class="tab" :class="{ active: selectedCategory === null }" @click="setCategory(null)">All</button>
         <button
           v-for="cat in categories"
           :key="cat.id"
           class="tab"
           :class="{ active: selectedCategory === cat.id }"
-          @click="selectedCategory = cat.id"
+          @click="setCategory(cat.id)"
         >{{ cat.icon }} {{ cat.name }}</button>
       </div>
 
@@ -32,14 +45,17 @@
       <div v-if="loading" class="empty-state">Loading questions…</div>
 
       <!-- Empty -->
-      <div v-else-if="!filteredQuestions.length" class="empty-state">
-        No questions yet.
-        <button class="btn btn-primary" style="margin-top:16px" @click="openAdd">Add the first one</button>
+      <div v-else-if="!questions.length" class="empty-state">
+        <template v-if="search || selectedCategory">No questions match your filters.</template>
+        <template v-else>
+          No questions yet.
+          <button class="btn btn-primary" style="margin-top:16px" @click="openAdd">Add the first one</button>
+        </template>
       </div>
 
       <!-- Question list -->
       <div v-else class="question-list">
-        <div v-for="q in filteredQuestions" :key="q.id" class="question-card card">
+        <div v-for="q in questions" :key="q.id" class="question-card card">
           <div class="q-meta">
             <span class="badge" :class="typeBadgeClass(q.type)">{{ typeLabel(q.type) }}</span>
             <span v-if="q.categories" class="cat-label">{{ q.categories.icon }} {{ q.categories.name }}</span>
@@ -63,6 +79,22 @@
             <button class="btn btn-danger btn-sm" @click="confirmDelete(q)">Delete</button>
           </div>
         </div>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="pagination">
+        <button class="page-btn" :disabled="page === 1" @click="goToPage(page - 1)">← Prev</button>
+        <div class="page-numbers">
+          <button
+            v-for="p in visiblePages"
+            :key="p"
+            class="page-btn"
+            :class="{ active: p === page, ellipsis: p === '…' }"
+            :disabled="p === '…'"
+            @click="p !== '…' && goToPage(p)"
+          >{{ p }}</button>
+        </div>
+        <button class="page-btn" :disabled="page === totalPages" @click="goToPage(page + 1)">Next →</button>
       </div>
     </div>
 
@@ -202,15 +234,37 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import axios from 'axios'
 
+const PAGE_SIZE = 25
+
 const questions = ref([])
 const categories = ref([])
 const loading = ref(true)
 const saving = ref(false)
 const selectedCategory = ref(null)
+const search = ref('')
+const page = ref(1)
+const total = ref(null)
 const showModal = ref(false)
 const editingId = ref(null)
 const deleteTarget = ref(null)
 const formError = ref('')
+let searchDebounce = null
+
+const totalPages = computed(() => total.value === null ? 1 : Math.ceil(total.value / PAGE_SIZE))
+
+const visiblePages = computed(() => {
+  const tp = totalPages.value
+  const p = page.value
+  if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1)
+  const pages = new Set([1, tp, p, p - 1, p + 1].filter(n => n >= 1 && n <= tp))
+  const sorted = [...pages].sort((a, b) => a - b)
+  const result = []
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('…')
+    result.push(sorted[i])
+  }
+  return result
+})
 
 const questionTypes = [
   { value: 'multiple_choice', label: 'Multiple Choice', icon: '🔤' },
@@ -232,27 +286,57 @@ const defaultForm = () => ({
 
 const form = ref(defaultForm())
 
-const filteredQuestions = computed(() =>
-  selectedCategory.value
-    ? questions.value.filter(q => q.category_id === selectedCategory.value)
-    : questions.value
-)
-
 const mediaPlaceholder = computed(() => {
   if (form.value.type === 'music') return 'https://p.scdn.co/mp3-preview/...'
   if (form.value.type === 'video') return 'https://www.youtube.com/embed/VIDEO_ID'
   return 'https://example.com/image.jpg'
 })
 
-async function loadData() {
+function buildParams(extraOffset) {
+  const params = new URLSearchParams({ limit: PAGE_SIZE, offset: extraOffset ?? (page.value - 1) * PAGE_SIZE })
+  if (selectedCategory.value) params.set('category_id', selectedCategory.value)
+  if (search.value.trim()) params.set('search', search.value.trim())
+  return params.toString()
+}
+
+async function fetchPage() {
   loading.value = true
-  const [qRes, cRes] = await Promise.all([
-    axios.get('/api/questions?limit=200'),
-    axios.get('/api/questions/categories'),
+  const qs = buildParams()
+  const [qRes, countRes] = await Promise.all([
+    axios.get(`/api/questions?${qs}`),
+    axios.get(`/api/questions/count?${qs}`),
   ])
   questions.value = qRes.data
-  categories.value = cRes.data
+  total.value = countRes.data.count
   loading.value = false
+}
+
+async function loadData() {
+  const [, cRes] = await Promise.all([
+    fetchPage(),
+    axios.get('/api/questions/categories'),
+  ])
+  categories.value = cRes.data
+}
+
+function setCategory(id) {
+  selectedCategory.value = id
+  page.value = 1
+  fetchPage()
+}
+
+function goToPage(p) {
+  page.value = p
+  fetchPage()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function onSearchInput() {
+  clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    page.value = 1
+    fetchPage()
+  }, 300)
 }
 
 function openAdd() {
@@ -322,14 +406,13 @@ async function saveQuestion() {
   saving.value = true
   try {
     if (editingId.value) {
-      const { data } = await axios.put(`/api/questions/${editingId.value}`, payload)
-      const idx = questions.value.findIndex(q => q.id === editingId.value)
-      if (idx !== -1) questions.value[idx] = { ...questions.value[idx], ...data }
+      await axios.put(`/api/questions/${editingId.value}`, payload)
     } else {
-      const { data } = await axios.post('/api/questions', payload)
-      questions.value.unshift(data)
+      await axios.post('/api/questions', payload)
+      page.value = 1
     }
     closeModal()
+    await fetchPage()
   } catch (err) {
     formError.value = err.response?.data?.error ?? 'Failed to save. Please try again.'
   } finally {
@@ -345,8 +428,10 @@ async function deleteQuestion() {
   saving.value = true
   try {
     await axios.delete(`/api/questions/${deleteTarget.value.id}`)
-    questions.value = questions.value.filter(q => q.id !== deleteTarget.value.id)
     deleteTarget.value = null
+    // If we just deleted the last item on this page, go back one page
+    if (questions.value.length === 1 && page.value > 1) page.value--
+    await fetchPage()
   } catch {
     deleteTarget.value = null
   } finally {
@@ -374,6 +459,17 @@ onMounted(loadData)
 .page-title { font-size: 2rem; font-weight: 900; }
 .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
 .manage-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+
+.search-row { margin-bottom: 16px; }
+.search-input {
+  width: 100%; padding: 10px 16px;
+  background: var(--surface); border: 2px solid transparent;
+  border-radius: var(--radius); color: var(--text);
+  font-size: 0.95rem; font-family: inherit;
+  transition: border-color 0.2s;
+}
+.search-input:focus { outline: none; border-color: var(--primary); }
+.search-input::placeholder { color: var(--text-muted); }
 
 .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
 .tab {
@@ -469,4 +565,22 @@ select option { background: var(--surface-2); }
 .confirm-text { font-style: italic; color: var(--text-muted); margin-bottom: 8px; }
 .confirm-hint { font-size: 0.85rem; color: var(--danger); margin-bottom: 24px; }
 .confirm-modal .modal-actions { justify-content: center; }
+
+/* Pagination */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; margin-top: 32px; padding-bottom: 40px;
+}
+.page-numbers { display: flex; gap: 6px; }
+.page-btn {
+  padding: 7px 14px; border-radius: var(--radius);
+  font-size: 0.85rem; font-weight: 700;
+  background: var(--surface); color: var(--text-muted);
+  border: 2px solid transparent; cursor: pointer; transition: all 0.15s;
+  min-width: 38px; text-align: center;
+}
+.page-btn:hover:not(:disabled):not(.active) { border-color: var(--primary); color: var(--text); }
+.page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.page-btn:disabled { opacity: 0.35; cursor: default; }
+.page-btn.ellipsis { background: none; border: none; cursor: default; padding: 7px 4px; }
 </style>

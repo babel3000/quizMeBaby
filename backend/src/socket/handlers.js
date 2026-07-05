@@ -3,6 +3,7 @@ import supabase from '../db/client.js'
 
 export function registerHandlers(io, socket) {
   socket.on('create_session', async ({ nickname } = {}) => {
+    console.log(`[create_session] socket=${socket.id} nickname=${nickname}`)
     const session = createSession()
     const player = session.addPlayer(socket.id, nickname?.trim() || 'Host', true)
     socket.join(session.code)
@@ -31,20 +32,19 @@ export function registerHandlers(io, socket) {
     socket.to(upper).emit('player_joined', { player, players: session.getPlayers() })
   })
 
-  socket.on('start_game', async ({ code, questionIds } = {}) => {
+  socket.on('start_game', async ({ code, numQuestions = 10, roundType = 'normal', categoryId } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
 
-    let questions
-    if (questionIds?.length) {
-      const { data } = await supabase.from('questions').select('*').in('id', questionIds)
-      questions = data
-    } else {
-      const { data } = await supabase.from('questions').select('*').limit(10)
-      questions = data
-    }
+    let query = supabase.from('questions').select('*')
+    if (categoryId) query = query.eq('category_id', categoryId)
+    const { data: allQuestions } = await query
 
-    if (!questions?.length) return socket.emit('start_error', { message: 'No questions available.' })
+    if (!allQuestions?.length) return socket.emit('start_error', { message: 'No questions available.' })
+
+    // Shuffle and take numQuestions
+    const shuffled = allQuestions.sort(() => Math.random() - 0.5)
+    let questions = shuffled.slice(0, Math.min(numQuestions, shuffled.length))
 
     // Overlay translations when the room language isn't English
     if (session.language !== 'en') {
@@ -64,8 +64,8 @@ export function registerHandlers(io, socket) {
       }
     }
 
-    session.startGame(questions)
-    io.to(code).emit('game_started', { totalQuestions: questions.length, language: session.language })
+    session.startGame(questions, roundType)
+    io.to(code).emit('game_started', { totalQuestions: questions.length, language: session.language, roundType })
     setTimeout(() => session.startQuestion(io), 3000)
   })
 
@@ -81,6 +81,7 @@ export function registerHandlers(io, socket) {
       pointsAwarded: result.pointsAwarded,
       consecutiveSkips: result.consecutiveSkips,
       correctStreak: result.correctStreak,
+      correctAnswer: result.correctAnswer,
     })
 
     const player = session.players.get(socket.id)
@@ -166,8 +167,7 @@ export function registerHandlers(io, socket) {
   socket.on('next_question', ({ code } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
-    const hasNext = session.startQuestion(io)
-    if (!hasNext) session.endGame(io)
+    session.startQuestion(io)
   })
 
   socket.on('end_game', ({ code } = {}) => {
