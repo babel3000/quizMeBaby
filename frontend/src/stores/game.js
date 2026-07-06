@@ -15,9 +15,15 @@ export const useGameStore = defineStore('game', () => {
   const roundType = ref('normal')
   const scoreboardVisible = ref(false)
   const language = ref('en')
+  const playerLanguage = ref(localStorage.getItem('playerLanguage') || null)
   const hostPlaysAsTeam = ref(false)
 
   function setLanguage(lang) { language.value = lang }
+  function setPlayerLanguage(lang) {
+    playerLanguage.value = lang
+    if (lang) localStorage.setItem('playerLanguage', lang)
+    else localStorage.removeItem('playerLanguage')
+  }
   function setHostPlaysAsTeam(val) { hostPlaysAsTeam.value = val }
   function setCode(c) { code.value = c }
   function setStatus(s) { status.value = s }
@@ -64,12 +70,14 @@ export const useGameStore = defineStore('game', () => {
     scoreboardVisible.value = false
     language.value = 'en'
     hostPlaysAsTeam.value = false
+    // playerLanguage is intentionally NOT reset — it's a persistent device preference
   }
 
   return {
     code, status, players, currentQuestion, questionIndex,
     totalQuestions, scoreboard, lastResult, myAnswer, timeLimit,
-    roundType, scoreboardVisible, language, hostPlaysAsTeam,
-    setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset, setLanguage, setHostPlaysAsTeam,
+    roundType, scoreboardVisible, language, playerLanguage, hostPlaysAsTeam,
+    setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset,
+    setLanguage, setPlayerLanguage, setHostPlaysAsTeam,
   }
 })

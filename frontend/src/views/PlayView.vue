@@ -12,6 +12,10 @@
         </div>
         <p class="waiting">{{ $t('lobby.waiting') }}</p>
         <div class="dots"><span /><span /><span /></div>
+        <div class="lang-switcher">
+          <button class="lang-btn" :class="{ active: displayedLang === 'en' }" @click="switchLang('en')">🇬🇧</button>
+          <button class="lang-btn" :class="{ active: displayedLang === 'pt-PT' }" @click="switchLang('pt-PT')">🇵🇹</button>
+        </div>
       </div>
     </div>
 
@@ -38,12 +42,12 @@
 
       <!-- Answer area -->
       <div v-if="!game.myAnswer" class="answer-area">
-        <h2 class="question-text">{{ game.currentQuestion?.text }}</h2>
+        <h2 class="question-text">{{ displayedQuestion?.text }}</h2>
 
         <!-- Multiple choice -->
-        <div v-if="game.currentQuestion?.type === 'multiple_choice'" class="options-grid">
+        <div v-if="displayedQuestion?.type === 'multiple_choice'" class="options-grid">
           <button
-            v-for="(opt, i) in game.currentQuestion.options"
+            v-for="(opt, i) in displayedQuestion.options"
             :key="opt"
             class="option-btn"
             :class="`color-${i}`"
@@ -113,7 +117,7 @@
 
         <div v-if="!game.myAnswer.isCorrect && !game.myAnswer.skipped && game.myAnswer.correctAnswer" class="correct-answer-reveal">
           <span class="ca-label">{{ $t('results.correctAnswer') }}</span>
-          <span class="ca-value">{{ game.myAnswer.correctAnswer }}</span>
+          <span class="ca-value">{{ translateAnswer(game.myAnswer.correctAnswer) }}</span>
         </div>
         <p class="feedback-waiting">{{ $t('game.waitingForResults') }}</p>
       </div>
@@ -124,7 +128,7 @@
       <div class="card results-card">
         <div class="results-answer">
           <span class="results-label">{{ $t('results.correctAnswer') }}</span>
-          <span class="results-value">{{ game.lastResult?.correctAnswer }}</span>
+          <span class="results-value">{{ translateAnswer(game.lastResult?.correctAnswer) }}</span>
         </div>
         <div class="my-result" :class="game.myAnswer?.skipped ? 'skipped' : game.myAnswer?.isCorrect ? 'correct' : 'incorrect'">
           <span>{{ game.myAnswer?.skipped ? $t('results.skipped') : game.myAnswer?.isCorrect ? $t('results.correct') : $t('results.wrong') }}</span>
@@ -184,6 +188,43 @@ const myStreak = ref(0)
 const initials = computed(() =>
   player.nickname.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 )
+
+// Per-player language preference — independent of room language
+const displayedLang = computed(() => game.playerLanguage || game.language)
+
+function applyLang(question, lang) {
+  if (!question || lang === 'en') return question
+  const tr = question.translations?.[lang]
+  return tr ? { ...question, text: tr.text, options: tr.options } : question
+}
+
+const displayedQuestion = computed(() => applyLang(game.currentQuestion, displayedLang.value))
+
+// Map a displayed (possibly translated) option back to the English answer the server validates
+function submitAnswer(displayedOpt) {
+  if (!displayedOpt?.trim() || game.myAnswer) return
+  const q = game.currentQuestion
+  const dispOpts = displayedQuestion.value?.options ?? q?.options ?? []
+  const idx = dispOpts.indexOf(displayedOpt)
+  const englishAnswer = idx >= 0 ? (q?.options[idx] ?? displayedOpt) : displayedOpt
+  socket.emit('submit_answer', { code: game.code, answer: englishAnswer.trim() })
+}
+
+// Translate an English correct-answer string into the player's display language
+function translateAnswer(englishAnswer) {
+  if (!englishAnswer || displayedLang.value === 'en') return englishAnswer
+  const q = game.currentQuestion
+  if (!q) return englishAnswer
+  const tr = q.translations?.[displayedLang.value]
+  if (!tr) return englishAnswer
+  const idx = q.options?.indexOf(englishAnswer) ?? -1
+  return idx >= 0 ? (tr.options[idx] ?? englishAnswer) : englishAnswer
+}
+
+function switchLang(lang) {
+  game.setPlayerLanguage(lang)
+  setLocale(lang)
+}
 
 // Penalty multiplier if a wrong answer is given after current skip streak
 const nextSkipPenaltyMult = computed(() => {
@@ -251,11 +292,6 @@ onUnmounted(() => {
   socket.off('language_changed', onLanguageChanged)
 })
 
-function submitAnswer(answer) {
-  if (!answer?.trim() || game.myAnswer) return
-  socket.emit('submit_answer', { code: game.code, answer: answer.trim() })
-}
-
 function skipQuestion() {
   if (game.myAnswer) return
   socket.emit('skip_question', { code: game.code })
@@ -278,6 +314,13 @@ function skipQuestion() {
 .room-code { color: var(--primary); letter-spacing: 3px; font-size: 1.1rem; }
 .waiting { color: var(--text-muted); margin-top: 28px; font-size: 0.95rem; line-height: 1.5; }
 .dots { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.lang-switcher { display: flex; gap: 8px; justify-content: center; margin-top: 20px; }
+.lang-btn {
+  font-size: 1.4rem; padding: 6px 12px; border-radius: 999px;
+  background: var(--surface-2); border: 2px solid transparent;
+  cursor: pointer; transition: all 0.15s; opacity: 0.5;
+}
+.lang-btn.active { border-color: var(--primary); opacity: 1; }
 .dots span {
   width: 9px; height: 9px; border-radius: 50%;
   background: var(--primary); animation: bounce 1.2s infinite;

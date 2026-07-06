@@ -139,14 +139,14 @@
 
       <!-- Question in progress -->
       <div v-else-if="game.status === 'question'" class="question-panel">
-        <QuestionCard :question="game.currentQuestion" :show-answer="false" />
+        <QuestionCard :question="hostQuestion" :show-answer="false" />
 
         <!-- Host answer area (only when playing as team) -->
         <div v-if="game.hostPlaysAsTeam" class="host-answer-area">
           <div v-if="!hostAnswer">
-            <div v-if="game.currentQuestion?.type === 'multiple_choice'" class="host-options-grid">
+            <div v-if="hostQuestion?.type === 'multiple_choice'" class="host-options-grid">
               <button
-                v-for="(opt, i) in game.currentQuestion.options"
+                v-for="(opt, i) in hostQuestion.options"
                 :key="opt"
                 class="host-option-btn"
                 :class="`color-${i}`"
@@ -182,7 +182,7 @@
 
       <!-- Results for this question -->
       <div v-else-if="game.status === 'results'" class="results-panel">
-        <QuestionCard :question="game.currentQuestion" :correct-answer="game.lastResult?.correctAnswer" :show-answer="true" />
+        <QuestionCard :question="hostQuestion" :correct-answer="hostCorrectAnswer" :show-answer="true" />
 
         <Scoreboard :players="game.scoreboard" :show-delta="true" />
 
@@ -337,6 +337,23 @@ const roundTypeLabel = computed(() => t(`roundTypes.${game.roundType}`) ?? game.
 const joinUrl = computed(() => window.location.origin + '/join')
 const nonHostPlayers = computed(() => game.players.filter(p => !p.isHost))
 
+function applyLang(question, lang) {
+  if (!question || lang === 'en') return question
+  const tr = question.translations?.[lang]
+  return tr ? { ...question, text: tr.text, options: tr.options, correct_answer: tr.correct_answer } : question
+}
+
+const hostQuestion = computed(() => applyLang(game.currentQuestion, game.language))
+const hostCorrectAnswer = computed(() => {
+  const ca = game.lastResult?.correctAnswer
+  const q = game.currentQuestion
+  if (!ca || !q || game.language === 'en') return ca
+  const tr = q.translations?.[game.language]
+  if (!tr) return ca
+  const idx = q.options?.indexOf(ca) ?? -1
+  return idx >= 0 ? (tr.options[idx] ?? ca) : ca
+})
+
 const onSessionCreated = ({ code, player: me, players, language, hostPlaysAsTeam: hpt }) => {
   player.setPlayer(me)
   game.setCode(code)
@@ -437,9 +454,13 @@ function createSession() {
   socket.once('session_created', () => clearTimeout(timeout))
 }
 
-function submitHostAnswer(answer) {
-  if (!answer?.trim() || hostAnswer.value) return
-  socket.emit('submit_answer', { code: game.code, answer: answer.trim() })
+function submitHostAnswer(displayedOpt) {
+  if (!displayedOpt?.trim() || hostAnswer.value) return
+  const q = game.currentQuestion
+  const dispOpts = hostQuestion.value?.options ?? q?.options ?? []
+  const idx = dispOpts.indexOf(displayedOpt)
+  const englishAnswer = idx >= 0 ? (q?.options[idx] ?? displayedOpt) : displayedOpt
+  socket.emit('submit_answer', { code: game.code, answer: englishAnswer.trim() })
 }
 
 function startGame() {

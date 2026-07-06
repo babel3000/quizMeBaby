@@ -15,13 +15,13 @@
     <!-- Question screen -->
     <div v-else-if="game.status === 'question'" class="screen-question">
       <div class="q-counter">{{ $t('screen.question', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</div>
-      <QuestionCard :question="game.currentQuestion" :show-answer="false" :large="true" />
+      <QuestionCard :question="screenQuestion" :show-answer="false" :large="true" />
       <Timer :seconds="game.timeLimit" :key="game.questionIndex" :large="true" />
     </div>
 
     <!-- Results screen -->
     <div v-else-if="game.status === 'results'" class="screen-results">
-      <QuestionCard :question="game.currentQuestion" :correct-answer="game.lastResult?.correctAnswer" :show-answer="true" :large="true" />
+      <QuestionCard :question="screenQuestion" :correct-answer="screenCorrectAnswer" :show-answer="true" :large="true" />
       <Scoreboard :players="game.scoreboard" :compact="false" />
     </div>
 
@@ -59,6 +59,23 @@ const socket = useSocket()
 
 const code = computed(() => route.params.code?.toUpperCase())
 const joinUrl = computed(() => window.location.origin + '/join')
+
+function applyLang(question, lang) {
+  if (!question || lang === 'en') return question
+  const tr = question.translations?.[lang]
+  return tr ? { ...question, text: tr.text, options: tr.options, correct_answer: tr.correct_answer } : question
+}
+
+const screenQuestion = computed(() => applyLang(game.currentQuestion, game.language))
+const screenCorrectAnswer = computed(() => {
+  const ca = game.lastResult?.correctAnswer
+  const q = game.currentQuestion
+  if (!ca || !q || game.language === 'en') return ca
+  const tr = q.translations?.[game.language]
+  if (!tr) return ca
+  const idx = q.options?.indexOf(ca) ?? -1
+  return idx >= 0 ? (tr.options[idx] ?? ca) : ca
+})
 
 const onJoined = ({ players, language }) => {
   game.setPlayers(players)

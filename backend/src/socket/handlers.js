@@ -64,22 +64,20 @@ export function registerHandlers(io, socket) {
     const shuffled = allQuestions.sort(() => Math.random() - 0.5)
     let questions = shuffled.slice(0, Math.min(numQuestions, shuffled.length))
 
-    // Overlay translations when the room language isn't English
-    if (session.language !== 'en') {
-      const ids = questions.map(q => q.id)
-      const { data: translations } = await supabase
-        .from('question_translations')
-        .select('question_id, text, correct_answer, options')
-        .in('question_id', ids)
-        .eq('locale', session.language)
+    // Attach all available translations so each client can render in their own language
+    const ids = questions.map(q => q.id)
+    const { data: allTranslations } = await supabase
+      .from('question_translations')
+      .select('question_id, locale, text, correct_answer, options')
+      .in('question_id', ids)
 
-      if (translations?.length) {
-        const tMap = new Map(translations.map(t => [t.question_id, t]))
-        questions = questions.map(q => {
-          const t = tMap.get(q.id)
-          return t ? { ...q, text: t.text, correct_answer: t.correct_answer, options: t.options } : q
-        })
+    if (allTranslations?.length) {
+      const tByQ = new Map()
+      for (const t of allTranslations) {
+        if (!tByQ.has(t.question_id)) tByQ.set(t.question_id, {})
+        tByQ.get(t.question_id)[t.locale] = { text: t.text, options: t.options, correct_answer: t.correct_answer }
       }
+      questions = questions.map(q => ({ ...q, translations: tByQ.get(q.id) ?? {} }))
     }
 
     session.startGame(questions, roundType)
