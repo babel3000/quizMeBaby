@@ -22,6 +22,9 @@ _Nothing active right now._
 
 ## Backlog — features
 - [ ] Spotify integration — music round questions with 30s preview
+- [ ] Music round: play two songs simultaneously (Web Audio API mixing)
+- [ ] Music round: play a song in reverse (AudioBuffer channel reversal)
+- [ ] Music round: play a song at 3× speed (AudioBufferSourceNode.playbackRate)
 - [ ] YouTube integration — video round questions with embedded clip
 - [ ] Question manager: bulk import via CSV
 - [ ] Question manager: search/filter by keyword
