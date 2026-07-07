@@ -440,17 +440,32 @@ async function searchDeezer() {
   }
 }
 
-function selectTrack(track) {
+async function selectTrack(track) {
   selectedTrack.value = track
   form.value.media_url = track.previewUrl ?? ''
   if (!form.value.text.trim()) {
     form.value.text = 'Name this song:'
   }
-  const others = trackResults.value.filter(t => t.id !== track.id).map(t => t.name)
-  const decoys = others.slice(0, 3)
-  while (decoys.length < 3) decoys.push('')
-  form.value.options = [track.name, ...decoys]
+  form.value.options = [track.name, '', '', '']
   form.value.correct_answer = track.name
+
+  try {
+    const res = await axios.get(`/api/media/deezer/radio?artistId=${track.artistId}`)
+    const decoys = res.data
+      .filter(t => t.name !== track.name)
+      .slice(0, 3)
+      .map(t => t.name)
+    while (decoys.length < 3) {
+      const fallback = trackResults.value.find(t => t.id !== track.id && !decoys.includes(t.name))
+      decoys.push(fallback?.name ?? '')
+    }
+    form.value.options = [track.name, ...decoys]
+  } catch {
+    const others = trackResults.value.filter(t => t.id !== track.id).map(t => t.name)
+    const decoys = others.slice(0, 3)
+    while (decoys.length < 3) decoys.push('')
+    form.value.options = [track.name, ...decoys]
+  }
 }
 
 function resetTrack() {

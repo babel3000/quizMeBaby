@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { searchTracks } from '../services/deezer.js'
+import { searchTracks, getArtistRadio } from '../services/deezer.js'
 import { searchVideo, getVideo } from '../services/youtube.js'
 
 const router = Router()
@@ -9,6 +9,17 @@ router.get('/deezer/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'Query parameter q is required' })
   try {
     const tracks = await searchTracks(q)
+    res.json(tracks)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/deezer/radio', async (req, res) => {
+  const { artistId } = req.query
+  if (!artistId) return res.status(400).json({ error: 'Query parameter artistId is required' })
+  try {
+    const tracks = await getArtistRadio(artistId)
     res.json(tracks)
   } catch (err) {
     res.status(500).json({ error: err.message })
