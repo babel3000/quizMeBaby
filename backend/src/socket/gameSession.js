@@ -4,7 +4,8 @@ const sessions = new Map()
 
 const WRONG_PENALTY = 500
 const FIRST_ANSWER_BONUS = 100
-const VALID_ROUND_TYPES = ['normal', 'hot_streak', 'safety_net', 'lone_wolf', 'double_down']
+const VALID_ROUND_TYPES = ['normal', 'hot_streak', 'safety_net', 'lone_wolf', 'double_down', 'chaos']
+const CHAOS_MODIFIERS = ['hot_streak', 'safety_net', 'lone_wolf', 'double_down']
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -27,9 +28,14 @@ export class GameSession {
     this.questionStartTime = null
     this.timer = null
     this.roundType = 'normal'
+    this.questionModifier = null
     this.firstCorrectThisQuestion = false
+    this.loneWolfWinner = null
     this.language = 'en'
     this.hostPlaysAsTeam = false
+    this.revealPending = false
+    this.revealTimer = null
+    this.nextQuestionTimeOverride = null
   }
 
   addPlayer(socketId, nickname, isHost = false) {
@@ -94,6 +100,14 @@ export class GameSession {
     this.questionAnswers = new Map()
     this.questionStartTime = Date.now()
     this.firstCorrectThisQuestion = false
+    this.loneWolfWinner = null
+    this.revealPending = false
+    if (this.revealTimer) { clearTimeout(this.revealTimer); this.revealTimer = null }
+    if (this.roundType === 'chaos') {
+      this.questionModifier = CHAOS_MODIFIERS[Math.floor(Math.random() * CHAOS_MODIFIERS.length)]
+    } else {
+      this.questionModifier = null
+    }
 
     for (const player of this.players.values()) {
       player.scoreBeforeQuestion = player.score
@@ -108,11 +122,28 @@ export class GameSession {
       total: this.questions.length,
       question,
       roundType: this.roundType,
+      questionModifier: this.questionModifier,
     })
 
-    const timeLimit = this.questions[this.currentQuestionIndex].time_limit || 30
-    this.timer = setTimeout(() => this.revealResults(io), timeLimit * 1000)
+    const timeLimit = this.nextQuestionTimeOverride ?? this.questions[this.currentQuestionIndex].time_limit ?? 30
+    this.nextQuestionTimeOverride = null
+    this.timer = setTimeout(() => this.prepareReveal(io), timeLimit * 1000)
     return true
+  }
+
+  prepareReveal(io) {
+    if (this.revealPending) return
+    this.revealPending = true
+
+    if (this.timer) { clearTimeout(this.timer); this.timer = null }
+
+    io.to(this.code).emit('music_stop')
+    io.to(this.code).emit('preparing_reveal', { countdown: 3 })
+
+    this.revealTimer = setTimeout(() => {
+      this.revealPending = false
+      this.revealResults(io)
+    }, 3000)
   }
 
   submitAnswer(socketId, answer) {
@@ -129,6 +160,7 @@ export class GameSession {
     const isCorrect = answer.trim().toLowerCase() === currentQ.correct_answer.trim().toLowerCase()
 
     let pointsAwarded = 0
+    const effectiveType = this.roundType === 'chaos' ? this.questionModifier : this.roundType
 
     if (isCorrect) {
       const speedRatio = Math.max(0, 1 - timeTaken / timeLimit)
@@ -137,14 +169,17 @@ export class GameSession {
 
       const isFirst = !this.firstCorrectThisQuestion
       if (isFirst) this.firstCorrectThisQuestion = true
-      if (isFirst && this.roundType !== 'lone_wolf') subtotal += FIRST_ANSWER_BONUS
+      if (isFirst && effectiveType !== 'lone_wolf') subtotal += FIRST_ANSWER_BONUS
+      if (isFirst && effectiveType === 'lone_wolf') {
+        this.loneWolfWinner = { id: player.id, nickname: player.nickname }
+      }
 
       let roundMult = 1
-      if (this.roundType === 'double_down') {
+      if (effectiveType === 'double_down') {
         roundMult = 2
-      } else if (this.roundType === 'hot_streak') {
+      } else if (effectiveType === 'hot_streak') {
         roundMult = 1 + 0.25 * Math.min(player.correctStreak, 4)
-      } else if (this.roundType === 'lone_wolf') {
+      } else if (effectiveType === 'lone_wolf') {
         roundMult = isFirst ? 1 : 0
       }
 
@@ -152,7 +187,7 @@ export class GameSession {
       player.correctStreak++
       player.consecutiveSkips = 0
     } else {
-      if (this.roundType === 'safety_net') {
+      if (effectiveType === 'safety_net') {
         pointsAwarded = 0
       } else {
         // Faster wrong answers cost more — mirrors the speed bonus for correct answers
@@ -207,6 +242,67 @@ export class GameSession {
     return {
       consecutiveSkips: player.consecutiveSkips,
       penaltyMultiplier: 1 + 0.25 * player.consecutiveSkips,
+    }
+  }
+
+  rejoinPlayer(newSocketId, playerId) {
+    let oldSocketId = null
+    let playerData = null
+
+    for (const [sid, p] of this.players.entries()) {
+      if (p.id === playerId) {
+        oldSocketId = sid
+        playerData = p
+        break
+      }
+    }
+
+    if (!playerData) return null
+
+    this.players.delete(oldSocketId)
+    playerData.connected = true
+    this.players.set(newSocketId, playerData)
+
+    if (playerData.isHost) this.hostSocketId = newSocketId
+
+    // Move any existing answer for this question to the new socket key
+    if (this.questionAnswers.has(oldSocketId)) {
+      this.questionAnswers.set(newSocketId, this.questionAnswers.get(oldSocketId))
+      this.questionAnswers.delete(oldSocketId)
+    }
+
+    return playerData
+  }
+
+  getCurrentState(socketId) {
+    const question = this.getCurrentQuestion()
+    const myAnswer = this.questionAnswers.get(socketId) ?? null
+    let lastResult = null
+
+    if (this.status === 'results') {
+      const currentQ = this.questions[this.currentQuestionIndex]
+      lastResult = {
+        correctAnswer: currentQ?.correct_answer,
+        scoreboard: this.getScoreboard(),
+        roundType: this.roundType,
+        questionModifier: this.questionModifier,
+        loneWolfWinner: this.loneWolfWinner,
+        isLastQuestion: this.currentQuestionIndex >= this.questions.length - 1,
+      }
+    }
+
+    return {
+      status: this.status,
+      question,
+      questionIndex: this.currentQuestionIndex,
+      totalQuestions: this.questions.length,
+      scoreboard: this.getScoreboard(),
+      players: this.getPlayers(),
+      language: this.language,
+      roundType: this.roundType,
+      questionModifier: this.questionModifier,
+      myAnswer,
+      lastResult,
     }
   }
 
@@ -270,6 +366,7 @@ export class GameSession {
           isCorrect: ans?.isCorrect ?? false,
           pointsAwarded: ans?.pointsAwarded ?? 0,
           skipped: ans?.skipped ?? false,
+          timeTaken: ans?.timeTaken ?? null,
         }
       })
 
@@ -278,6 +375,8 @@ export class GameSession {
       scoreboard: this.getScoreboard(),
       playerResults,
       roundType: this.roundType,
+      questionModifier: this.questionModifier,
+      loneWolfWinner: this.loneWolfWinner,
       isLastQuestion: this.currentQuestionIndex >= this.questions.length - 1,
     })
   }
@@ -285,6 +384,7 @@ export class GameSession {
   endGame(io) {
     this.status = 'finished'
     if (this.timer) clearTimeout(this.timer)
+    if (this.revealTimer) clearTimeout(this.revealTimer)
     io.to(this.code).emit('game_ended', { scoreboard: this.getScoreboard() })
   }
 }
@@ -297,6 +397,12 @@ export function createSession() {
 
 export function getSession(code) { return sessions.get(code) }
 export function deleteSession(code) { sessions.delete(code) }
+
+export function getActiveSessions() {
+  return Array.from(sessions.values())
+    .filter(s => s.status !== 'finished')
+    .map(s => ({ code: s.code, status: s.status, playerCount: s.getPlayers().filter(p => !p.isHost).length }))
+}
 
 export function findSessionBySocket(socketId) {
   for (const session of sessions.values()) {

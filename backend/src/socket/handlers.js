@@ -111,7 +111,7 @@ export function registerHandlers(io, socket) {
     })
 
     if (session.questionAnswers.size >= activePlayers.length) {
-      session.revealResults(io)
+      session.prepareReveal(io)
     }
   })
 
@@ -138,11 +138,29 @@ export function registerHandlers(io, socket) {
     })
 
     if (session.questionAnswers.size >= activePlayers.length) {
-      session.revealResults(io)
+      session.prepareReveal(io)
     }
   })
 
   const VALID_LANGUAGES = ['en', 'pt-PT']
+  socket.on('rejoin_session', ({ code, playerId } = {}) => {
+    const upper = code?.toUpperCase()
+    const session = getSession(upper)
+    if (!session) return socket.emit('rejoin_error', { message: 'Room not found.' })
+    if (session.status === 'finished') return socket.emit('rejoin_error', { message: 'Game already ended.' })
+
+    const player = session.rejoinPlayer(socket.id, playerId)
+    if (!player) return socket.emit('rejoin_error', { message: 'Player not found in session.' })
+
+    socket.join(upper)
+
+    const state = session.getCurrentState(socket.id)
+    socket.emit('rejoined_session', { code: upper, player, ...state })
+
+    // Notify others the player is back
+    socket.to(upper).emit('player_joined', { player, players: session.getPlayers() })
+  })
+
   socket.on('set_language', ({ code, language } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
@@ -178,13 +196,26 @@ export function registerHandlers(io, socket) {
   socket.on('reveal_results', ({ code } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
-    session.revealResults(io)
+    session.prepareReveal(io)
   })
 
-  socket.on('next_question', ({ code } = {}) => {
+  socket.on('next_question', ({ code, timeOverride } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
+    if (timeOverride > 0) session.nextQuestionTimeOverride = timeOverride
     session.startQuestion(io)
+  })
+
+  socket.on('play_music', ({ code } = {}) => {
+    const session = getSession(code)
+    if (!session || session.hostSocketId !== socket.id) return
+    io.to(code).emit('music_play')
+  })
+
+  socket.on('stop_music', ({ code } = {}) => {
+    const session = getSession(code)
+    if (!session || session.hostSocketId !== socket.id) return
+    io.to(code).emit('music_stop')
   })
 
   socket.on('end_game', ({ code } = {}) => {

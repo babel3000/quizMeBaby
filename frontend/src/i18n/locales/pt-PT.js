@@ -39,6 +39,7 @@ export default {
     category: 'Categoria',
     allCategories: 'Todas as categorias',
     newRound: 'Nova Ronda',
+    nextQuestionTime: 'Tempo da próxima pergunta',
     startRound: 'Iniciar Ronda →',
     cancelNewRound: 'Cancelar',
     playAsTeam: 'Participar como equipa',
@@ -48,6 +49,9 @@ export default {
 
   game: {
     getReady: 'Preparem-se!',
+    reconnecting: 'A reconectar…',
+    musicPlaying: 'A tocar…',
+    musicWaiting: 'À espera que o anfitrião toque a música…',
     waitingForHost: 'À espera que o anfitrião inicie o jogo…',
     waitingForResults: 'À espera dos resultados…',
     skip: 'Saltar ↷',
@@ -75,6 +79,7 @@ export default {
     pts: 'pts',
     correctAnswer: 'Resposta',
     revealAnswer: 'Revelar Resposta',
+    answerTimes: 'Tempos de Resposta',
     nextQuestion: 'Próxima Pergunta →',
     endGame: 'Terminar Jogo 🏆',
     showScoreboard: '📊 Mostrar Classificação',
@@ -92,13 +97,23 @@ export default {
     safety_netDesc: 'Respostas erradas não custam pontos. Uma ronda tranquila para ganhar confiança.',
     lone_wolf: '🐺 Lobo Solitário',
     lone_wolfDesc: 'Só a primeira resposta certa pontua — e pontua muito. A velocidade é tudo.',
+    loneWolfWon: '{nickname} ganhou esta ronda!',
+    loneWolfYouWon: 'Ganhaste esta ronda!',
+    loneWolfNobody: 'Ninguém pontuou nesta ronda.',
     double_down: '⚡ Dobrar Aposta',
     double_downDesc: 'Todos os valores de pontos são duplicados. Risco máximo, recompensa máxima.',
+    chaos: '🎲 Caos',
+    chaosDesc: 'Cada pergunta traz uma regra aleatória — Sequência Quente, Rede de Segurança, Lobo Solitário ou Dobrar Aposta. Espera o inesperado.',
+    chaosMod: 'Esta pergunta: {mod}',
   },
 
   screen: {
     joinAt: 'Entrar em',
     question: 'Pergunta {n} de {total}',
+    lookingForGame: 'À procura de um jogo activo…',
+    connecting: 'A ligar…',
+    multipleGames: 'Vários jogos activos — escolhe um:',
+    players: 'jogadores',
   },
 
   lobby: {

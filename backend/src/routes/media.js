@@ -1,24 +1,15 @@
 import { Router } from 'express'
-import { searchTrack, getTrack } from '../services/spotify.js'
+import { searchTracks } from '../services/deezer.js'
 import { searchVideo, getVideo } from '../services/youtube.js'
 
 const router = Router()
 
-router.get('/spotify/search', async (req, res) => {
+router.get('/deezer/search', async (req, res) => {
   const { q } = req.query
   if (!q) return res.status(400).json({ error: 'Query parameter q is required' })
   try {
-    const tracks = await searchTrack(q)
+    const tracks = await searchTracks(q)
     res.json(tracks)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
-router.get('/spotify/track/:id', async (req, res) => {
-  try {
-    const track = await getTrack(req.params.id)
-    res.json(track)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -31,15 +31,17 @@ A real-time multiplayer pub quiz game. A host controls the game from one device 
 ## Features
 
 - **Live multiplayer** — host creates a room, teams join with a 6-character code
-- **Question manager** — full CRUD UI to add, edit, and delete questions without touching a database
-- **Multiple question types** — Multiple Choice, Music, Video, Image
-- **Big screen view** — a separate projection URL (`/screen/:code`) for TVs or projectors; connects as an observer only (does not count as a team)
+- **Question manager** — full CRUD UI to add, edit, and delete questions without touching a database; includes Deezer search for music questions (auto-fills preview URL, options, and answer)
+- **Multiple question types** — Multiple Choice, Music (30s audio preview via Deezer), Video, Image
+- **Music round** — host searches Deezer from the question manager, saves the 30s preview URL; during the game the host presses Play/Stop and audio streams on all player and screen devices simultaneously
+- **Big screen view** — a separate projection URL (`/screen/:code`) for TVs or projectors; auto-discovers the active game at `/screen` if only one session is running
 - **Host as player** — host can optionally compete as their own team with a custom team name, and appears on the scoreboard
 - **Rich scoring system** — speed bonuses, first-answer bonuses, wrong-answer penalties, skip mechanics, and round types
 - **Skip mechanic** — teams can skip questions, but consecutive skips increase the penalty for future wrong answers; blocked after 4 skips in a row
-- **Round types** — host sets the scoring mode per round; it applies for the entire round and can only be changed between rounds
+- **Round types** — host sets the scoring mode per round; it applies for the entire round and can only be changed between rounds; **Chaos** mode picks a random rule per question
 - **Streak tracking** — consecutive correct answers are tracked and displayed: a 🔥 chip appears on the player's answer screen, a streak badge shows on the scoreboard, and the round type **Hot Streak** amplifies streaks with a stacking multiplier
 - **Rank movement** — after each question the scoreboard shows ▲/▼ arrows indicating how many positions each team moved since the previous question
+- **Lone Wolf winner banner** — when a Lone Wolf question resolves, the winning team sees "You won this round!" and all others see who scored
 
 ---
 
@@ -99,6 +101,7 @@ The host sets a round type before starting the round. It applies for **all quest
 | **🛡️ Safety Net** | Wrong-answer penalty is suppressed — teams cannot lose points this round |
 | **🐺 Lone Wolf** | Only the **first** team to answer correctly earns points; all others get 0 |
 | **⚡ Double Down** | All correct-answer points are doubled |
+| **🎲 Chaos** | Each question randomly applies one of the four special round rules |
 
 ---
 
@@ -125,7 +128,10 @@ pub-quiz/
 │       │   └── schema.sql        # Database schema + seed data
 │       ├── routes/
 │       │   ├── questions.js      # REST API: CRUD for questions and categories
-│       │   └── media.js          # Media URL helpers
+│       │   └── media.js          # Deezer + YouTube search proxies
+│       ├── services/
+│       │   ├── deezer.js         # Deezer public API — track search + 30s preview URLs
+│       │   └── youtube.js        # YouTube Data API — video search
 │       └── socket/
 │           ├── handlers.js       # All Socket.io event handlers
 │           └── gameSession.js    # In-memory game session state + scoring logic
@@ -151,8 +157,9 @@ pub-quiz/
             ├── HostView.vue      # Host control panel
             ├── JoinView.vue      # Team join screen
             ├── PlayView.vue      # Team answer screen
-            ├── ScreenView.vue    # Big-screen projection view
-            └── ManageView.vue    # Question manager (add / edit / delete)
+            ├── ScreenView.vue      # Big-screen projection view (join with room code)
+            ├── ScreenAutoView.vue  # Auto-discovers active game at /screen
+            └── ManageView.vue      # Question manager (add / edit / delete)
 ```
 
 ---
@@ -245,7 +252,8 @@ Then open:
 Go to `/manage` to add, edit, and delete questions without touching the database directly.
 
 - Supports **Multiple Choice** (up to 4 options, click to mark the correct answer), **Music**, **Video**, and **Image** types
-- Filter questions by category
+- **Music questions**: search Deezer to find a track — the 30s preview URL, question text ("Name this song:"), answer, and decoy options are all auto-filled from the search results
+- Filter and search questions by category, difficulty, or keyword
 - Set custom **point values** and **time limits** per question
 
 ---
@@ -266,6 +274,8 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 | `next_question` | `{ code }` | Host advances to the next question |
 | `show_scoreboard` | `{ code }` | Host triggers the scoreboard overlay on all screens |
 | `hide_scoreboard` | `{ code }` | Host dismisses the scoreboard overlay |
+| `play_music` | `{ code }` | Host starts audio playback on all connected devices |
+| `stop_music` | `{ code }` | Host stops audio playback on all connected devices |
 | `end_game` | `{ code }` | Host ends the game |
 | `set_language` | `{ code, language }` | Host changes the room language (lobby only) |
 
@@ -282,7 +292,9 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 | `answer_received` | `{ isCorrect, pointsAwarded, consecutiveSkips, correctStreak, forcedPenalty? }` | Sent to answering team |
 | `skip_confirmed` | `{ consecutiveSkips, penaltyMultiplier }` | Sent to skipping team |
 | `player_answered` | `{ totalAnswered, totalPlayers, ... }` | Sent to host as teams answer |
-| `results_revealed` | `{ correctAnswer, scoreboard, playerResults, roundType, isLastQuestion }` | Broadcast after reveal |
+| `music_play` | `{ }` | Broadcast to all devices: start playing the question's audio preview |
+| `music_stop` | `{ }` | Broadcast to all devices: stop audio playback |
+| `results_revealed` | `{ correctAnswer, scoreboard, playerResults, roundType, isLastQuestion, loneWolfWinner? }` | Broadcast after reveal |
 | `show_scoreboard` | `{ scoreboard, roundType }` | Broadcast to trigger overlay on all screens |
 | `hide_scoreboard` | — | Broadcast to dismiss overlay |
 | `language_changed` | `{ language }` | Broadcast when host changes the room language |
@@ -307,8 +319,6 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 
 See [TODO.md](./TODO.md) for the full backlog. Planned highlights:
 
-- Spotify integration for music round questions (30s preview clips)
 - YouTube integration for video round questions
-- Reconnect handling (teams rejoin and keep their score)
 - CSV bulk import for questions
 - Production deployment (Vercel + Railway/Render)

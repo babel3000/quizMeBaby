@@ -13,6 +13,7 @@ export const useGameStore = defineStore('game', () => {
   const myAnswer = ref(null)
   const timeLimit = ref(30)
   const roundType = ref('normal')
+  const questionModifier = ref(null)
   const scoreboardVisible = ref(false)
   const language = ref('en')
   const playerLanguage = ref(localStorage.getItem('playerLanguage') || null)
@@ -35,6 +36,7 @@ export const useGameStore = defineStore('game', () => {
     totalQuestions.value = data.total
     timeLimit.value = data.question.time_limit ?? 30
     roundType.value = data.roundType ?? 'normal'
+    questionModifier.value = data.questionModifier ?? null
     myAnswer.value = null
     scoreboardVisible.value = false
     status.value = 'question'
@@ -48,6 +50,7 @@ export const useGameStore = defineStore('game', () => {
     lastResult.value = data
     scoreboard.value = data.scoreboard
     roundType.value = data.roundType ?? roundType.value
+    questionModifier.value = data.questionModifier ?? null
     status.value = 'results'
   }
 
@@ -67,6 +70,7 @@ export const useGameStore = defineStore('game', () => {
     lastResult.value = null
     myAnswer.value = null
     roundType.value = 'normal'
+    questionModifier.value = null
     scoreboardVisible.value = false
     language.value = 'en'
     hostPlaysAsTeam.value = false
@@ -76,7 +80,7 @@ export const useGameStore = defineStore('game', () => {
   return {
     code, status, players, currentQuestion, questionIndex,
     totalQuestions, scoreboard, lastResult, myAnswer, timeLimit,
-    roundType, scoreboardVisible, language, playerLanguage, hostPlaysAsTeam,
+    roundType, questionModifier, scoreboardVisible, language, playerLanguage, hostPlaysAsTeam,
     setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset,
     setLanguage, setPlayerLanguage, setHostPlaysAsTeam,
   }

@@ -139,12 +139,25 @@
 
       <!-- Question in progress -->
       <div v-else-if="game.status === 'question'" class="question-panel">
+        <div v-if="game.roundType === 'chaos' && game.questionModifier" class="chaos-mod-banner">
+          {{ $t('roundTypes.chaosMod', { mod: $t(`roundTypes.${game.questionModifier}`) }) }}
+        </div>
         <QuestionCard :question="hostQuestion" :show-answer="false" />
+
+        <!-- Music controls -->
+        <div v-if="hostQuestion?.type === 'music'" class="music-controls">
+          <div class="music-track-info">🎵 Music question</div>
+          <div class="music-btns">
+            <button class="btn btn-primary music-play-btn" :class="{ playing: musicPlaying }" @click="toggleMusic">
+              {{ musicPlaying ? '⏹ Stop' : '▶ Play Track' }}
+            </button>
+          </div>
+        </div>
 
         <!-- Host answer area (only when playing as team) -->
         <div v-if="game.hostPlaysAsTeam" class="host-answer-area">
           <div v-if="!hostAnswer">
-            <div v-if="hostQuestion?.type === 'multiple_choice'" class="host-options-grid">
+            <div v-if="hostQuestion?.type === 'multiple_choice' || hostQuestion?.type === 'music'" class="host-options-grid">
               <button
                 v-for="(opt, i) in hostQuestion.options"
                 :key="opt"
@@ -184,7 +197,22 @@
       <div v-else-if="game.status === 'results'" class="results-panel">
         <QuestionCard :question="hostQuestion" :correct-answer="hostCorrectAnswer" :show-answer="true" />
 
+        <div v-if="isLoneWolfRound" class="lone-wolf-banner">
+          {{ game.lastResult?.loneWolfWinner
+            ? $t('roundTypes.loneWolfWon', { nickname: game.lastResult.loneWolfWinner.nickname })
+            : $t('roundTypes.loneWolfNobody') }}
+        </div>
+
         <Scoreboard :players="game.scoreboard" :show-delta="true" />
+
+        <!-- Per-player answer times -->
+        <div v-if="answerTimes.length" class="answer-times">
+          <div v-for="(r, i) in answerTimes" :key="r.id" class="at-row" :class="{ correct: r.isCorrect, skipped: r.skipped }">
+            <span class="at-rank">#{{ i + 1 }}</span>
+            <span class="at-name">{{ r.nickname }}</span>
+            <span class="at-time">{{ r.skipped ? '—' : r.timeTaken !== null ? r.timeTaken.toFixed(1) + 's' : '—' }}</span>
+          </div>
+        </div>
 
         <!-- New round config (shown after last question) -->
         <div v-if="game.lastResult?.isLastQuestion && configuringNewRound" class="new-round-panel">
@@ -238,6 +266,20 @@
           </div>
         </div>
 
+        <!-- Time picker for next question (only when there are more questions) -->
+        <div v-if="!game.lastResult?.isLastQuestion" class="time-picker-row">
+          <span class="time-picker-label">{{ $t('host.nextQuestionTime') }}</span>
+          <div class="time-pills">
+            <button
+              v-for="sec in [10, 15, 20, 30, 45, 60]"
+              :key="sec"
+              class="time-pill"
+              :class="{ active: nextQuestionTime === sec }"
+              @click="nextQuestionTime = sec"
+            >{{ sec }}s</button>
+          </div>
+        </div>
+
         <div class="results-actions">
           <button class="btn btn-secondary" @click="showScoreboard">{{ $t('results.showScoreboard') }}</button>
 
@@ -279,6 +321,13 @@
       @new-round="startNewRoundFromOverlay"
       @end-game="endGame"
     />
+
+    <!-- Reveal countdown overlay (fixed, outside v-if chain) -->
+    <Transition name="countdown">
+      <div v-if="revealCountdown" class="reveal-overlay">
+        <span class="reveal-number">{{ revealCountdown }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -313,6 +362,9 @@ const answeredCount = ref(0)
 const totalPlayers = ref(0)
 const categories = ref([])
 const configuringNewRound = ref(false)
+const revealCountdown = ref(null)
+const nextQuestionTime = ref(30)
+const musicPlaying = ref(false)
 
 const roundConfig = reactive({
   numQuestions: 10,
@@ -331,9 +383,14 @@ const roundTypes = computed(() => [
   { value: 'safety_net',  label: t('roundTypes.safety_net'),  desc: t('roundTypes.safety_netDesc') },
   { value: 'lone_wolf',   label: t('roundTypes.lone_wolf'),   desc: t('roundTypes.lone_wolfDesc') },
   { value: 'double_down', label: t('roundTypes.double_down'), desc: t('roundTypes.double_downDesc') },
+  { value: 'chaos',       label: t('roundTypes.chaos'),       desc: t('roundTypes.chaosDesc') },
 ])
 
 const roundTypeLabel = computed(() => t(`roundTypes.${game.roundType}`) ?? game.roundType)
+const isLoneWolfRound = computed(() => {
+  const effective = game.roundType === 'chaos' ? game.questionModifier : game.roundType
+  return effective === 'lone_wolf'
+})
 const joinUrl = computed(() => window.location.origin + '/join')
 const nonHostPlayers = computed(() => game.players.filter(p => !p.isHost))
 
@@ -352,6 +409,15 @@ const hostCorrectAnswer = computed(() => {
   if (!tr) return ca
   const idx = q.options?.indexOf(ca) ?? -1
   return idx >= 0 ? (tr.options[idx] ?? ca) : ca
+})
+
+const answerTimes = computed(() => {
+  const results = game.lastResult?.playerResults
+  if (!results?.length) return []
+  return [...results]
+    .filter(r => !r.skipped && r.timeTaken !== null)
+    .sort((a, b) => a.timeTaken - b.timeTaken)
+    .concat(results.filter(r => r.skipped || r.timeTaken === null))
 })
 
 const onSessionCreated = ({ code, player: me, players, language, hostPlaysAsTeam: hpt }) => {
@@ -373,13 +439,41 @@ const onGameStarted = ({ totalQuestions, roundType }) => {
   let c = 3
   const timer = setInterval(() => { c--; countdown.value = c; if (c <= 0) clearInterval(timer) }, 1000)
 }
+let hostCountdownTimer = null
+const onPreparingReveal = ({ countdown: c }) => {
+  revealCountdown.value = c
+  hostCountdownTimer = setInterval(() => {
+    revealCountdown.value--
+    if (revealCountdown.value <= 0) {
+      clearInterval(hostCountdownTimer)
+      revealCountdown.value = null
+    }
+  }, 1000)
+}
+
 const onQuestion = data => {
   answeredCount.value = 0
   hostAnswer.value = null
   hostTextAnswer.value = ''
+  revealCountdown.value = null
+  musicPlaying.value = false
+  if (hostCountdownTimer) { clearInterval(hostCountdownTimer); hostCountdownTimer = null }
+  nextQuestionTime.value = data.question?.time_limit ?? 30
   totalPlayers.value = nonHostPlayers.value.length + (game.hostPlaysAsTeam ? 1 : 0)
   game.setQuestion(data)
 }
+
+function toggleMusic() {
+  if (musicPlaying.value) {
+    socket.emit('stop_music', { code: game.code })
+    musicPlaying.value = false
+  } else {
+    socket.emit('play_music', { code: game.code })
+    musicPlaying.value = true
+  }
+}
+
+const onMusicStop = () => { musicPlaying.value = false }
 const onPlayerAnswered = ({ totalAnswered, totalPlayers: tp }) => {
   answeredCount.value = totalAnswered
   if (tp !== undefined) totalPlayers.value = tp
@@ -405,6 +499,8 @@ onMounted(async () => {
   socket.on('player_answered', onPlayerAnswered)
   socket.on('answer_received', onAnswerReceived)
   socket.on('results_revealed', onResultsRevealed)
+  socket.on('preparing_reveal', onPreparingReveal)
+  socket.on('music_stop', onMusicStop)
   socket.on('game_ended', onGameEnded)
   socket.on('round_type_changed', onRoundTypeChanged)
   socket.on('show_scoreboard', onShowScoreboard)
@@ -426,6 +522,8 @@ onUnmounted(() => {
   socket.off('player_answered', onPlayerAnswered)
   socket.off('answer_received', onAnswerReceived)
   socket.off('results_revealed', onResultsRevealed)
+  socket.off('preparing_reveal', onPreparingReveal)
+  socket.off('music_stop', onMusicStop)
   socket.off('game_ended', onGameEnded)
   socket.off('round_type_changed', onRoundTypeChanged)
   socket.off('show_scoreboard', onShowScoreboard)
@@ -478,7 +576,7 @@ function revealResults() {
 }
 
 function nextQuestion() {
-  socket.emit('next_question', { code: game.code })
+  socket.emit('next_question', { code: game.code, timeOverride: nextQuestionTime.value })
 }
 
 function nextQuestionFromOverlay() {
@@ -633,13 +731,77 @@ function resetGame() {
 .rt-pill-sm.rt-safety_net  { background: rgba(44,182,125,0.15); color: var(--success); }
 .rt-pill-sm.rt-lone_wolf   { background: rgba(180,100,220,0.15); color: #c47de0; }
 .rt-pill-sm.rt-double_down { background: rgba(233,69,96,0.15); color: var(--primary); }
+.rt-pill-sm.rt-chaos       { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+
+.music-controls {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 18px; border-radius: 12px;
+  background: rgba(30,215,96,0.08); border: 1px solid rgba(30,215,96,0.2);
+}
+.music-track-info { font-size: 0.9rem; font-weight: 600; color: #1ed760; }
+.music-play-btn { background: #1ed760; color: #000; border-color: #1ed760; }
+.music-play-btn.playing { background: rgba(30,215,96,0.2); color: #1ed760; }
+
+.chaos-mod-banner {
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(99,102,241,0.15);
+  color: #a5b4fc;
+  margin-bottom: 12px;
+}
+.lone-wolf-banner {
+  text-align: center; padding: 12px 16px; border-radius: var(--radius);
+  font-size: 0.95rem; font-weight: 700;
+  background: rgba(250,204,21,0.12); color: #eab308;
+  border: 1px solid rgba(250,204,21,0.3);
+}
 
 .countdown-panel { text-align: center; padding: 60px; }
 .countdown-number { font-size: 6rem; font-weight: 900; color: var(--primary); }
 
 .answer-progress { display: flex; justify-content: space-between; align-items: center; margin: 16px 0; color: var(--text-muted); }
 
+.reveal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  pointer-events: none;
+}
+.reveal-number {
+  font-size: 14rem;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  text-shadow: 0 0 80px var(--primary);
+}
+.countdown-enter-active, .countdown-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.countdown-enter-from, .countdown-leave-to { opacity: 0; transform: scale(1.5); }
+
+.time-picker-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.time-picker-label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.time-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.time-pill { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.time-pill:hover { border-color: var(--primary); color: var(--text); }
+.time-pill.active { background: rgba(233,69,96,0.15); border-color: var(--primary); color: var(--primary); }
+
 .results-panel { display: flex; flex-direction: column; gap: 20px; }
+
+.answer-times { background: var(--surface); border-radius: 12px; overflow: hidden; }
+.at-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.at-row:last-child { border-bottom: none; }
+.at-row.correct .at-time { color: var(--success); }
+.at-row.skipped { opacity: 0.5; }
+.at-rank { font-size: 0.8rem; color: var(--text-muted); width: 28px; flex-shrink: 0; }
+.at-name { flex: 1; font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.at-time { font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-muted); flex-shrink: 0; }
 .results-actions { display: flex; justify-content: flex-end; gap: 10px; align-items: center; flex-wrap: wrap; }
 
 .end-card { max-width: 600px; width: 100%; }

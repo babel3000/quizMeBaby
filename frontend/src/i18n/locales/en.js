@@ -39,6 +39,7 @@ export default {
     category: 'Category',
     allCategories: 'All categories',
     newRound: 'New Round',
+    nextQuestionTime: 'Next question time',
     startRound: 'Start Round →',
     cancelNewRound: 'Cancel',
     playAsTeam: 'Play as a team',
@@ -48,6 +49,9 @@ export default {
 
   game: {
     getReady: 'Get ready!',
+    reconnecting: 'Reconnecting…',
+    musicPlaying: 'Now playing…',
+    musicWaiting: 'Waiting for host to play track…',
     waitingForHost: 'Waiting for host to start the game…',
     waitingForResults: 'Waiting for results…',
     skip: 'Skip ↷',
@@ -75,6 +79,7 @@ export default {
     pts: 'pts',
     correctAnswer: 'Answer',
     revealAnswer: 'Reveal Answer',
+    answerTimes: 'Answer Times',
     nextQuestion: 'Next Question →',
     endGame: 'End Game 🏆',
     showScoreboard: '📊 Show Scoreboard',
@@ -92,13 +97,23 @@ export default {
     safety_netDesc: 'Wrong answers cost no points. A forgiving round to build confidence.',
     lone_wolf: '🐺 Lone Wolf',
     lone_wolfDesc: 'Only the very first correct answer scores — and it scores big. Speed is everything.',
+    loneWolfWon: '{nickname} won this round!',
+    loneWolfYouWon: 'You won this round!',
+    loneWolfNobody: 'Nobody scored this round.',
     double_down: '⚡ Double Down',
     double_downDesc: 'All point values are doubled. Maximum risk, maximum reward.',
+    chaos: '🎲 Chaos',
+    chaosDesc: 'Every question brings a random rule — Hot Streak, Safety Net, Lone Wolf, or Double Down. Expect the unexpected.',
+    chaosMod: 'This question: {mod}',
   },
 
   screen: {
     joinAt: 'Join at',
     question: 'Question {n} of {total}',
+    lookingForGame: 'Looking for an active game…',
+    connecting: 'Connecting…',
+    multipleGames: 'Multiple active games — pick one:',
+    players: 'players',
   },
 
   lobby: {

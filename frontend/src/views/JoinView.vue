@@ -64,6 +64,7 @@ const onJoined = ({ code: roomCode, player: me, players, language }) => {
   game.setLanguage(language ?? 'en')
   setLocale(language ?? 'en')
   game.setStatus('lobby')
+  localStorage.setItem('reconnect', JSON.stringify({ code: roomCode, playerId: me.id }))
   router.push('/play')
 }
 const onJoinError = ({ message }) => { error.value = message; loading.value = false }

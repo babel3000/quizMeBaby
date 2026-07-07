@@ -147,8 +147,48 @@
               <textarea v-model="form.text" rows="2" placeholder="Enter your question…" required />
             </div>
 
+            <!-- Deezer search (music type) -->
+            <div v-if="form.type === 'music'" class="field">
+              <label>Search Deezer</label>
+              <div class="track-search-row">
+                <input
+                  v-model="trackQuery"
+                  type="search"
+                  placeholder="Search for a song or artist…"
+                  class="track-input"
+                  @keyup.enter="searchDeezer"
+                />
+                <button type="button" class="btn btn-secondary" :disabled="trackSearching" @click="searchDeezer">
+                  {{ trackSearching ? '…' : '🔍 Search' }}
+                </button>
+              </div>
+              <div v-if="trackError" class="track-error">{{ trackError }}</div>
+              <div v-if="trackResults.length" class="track-results">
+                <div
+                  v-for="track in trackResults"
+                  :key="track.id"
+                  class="track-row"
+                  :class="{ selected: selectedTrack?.id === track.id }"
+                  @click="selectTrack(track)"
+                >
+                  <img v-if="track.albumArt" :src="track.albumArt" class="track-art" />
+                  <div v-else class="track-art track-art-placeholder">🎵</div>
+                  <div class="track-info">
+                    <div class="track-name">{{ track.name }}</div>
+                    <div class="track-artist">{{ track.artist }}</div>
+                  </div>
+                  <div v-if="selectedTrack?.id === track.id" class="selected-badge">✓ Selected</div>
+                </div>
+              </div>
+              <div v-if="selectedTrack" class="selected-track-summary">
+                <span class="st-label">Selected:</span>
+                <span class="st-name">{{ selectedTrack.name }}</span>
+                <span class="st-artist">by {{ selectedTrack.artist }}</span>
+              </div>
+            </div>
+
             <!-- Multiple choice options -->
-            <div v-if="form.type === 'multiple_choice'" class="field">
+            <div v-if="form.type === 'multiple_choice' || form.type === 'music'" class="field">
               <label>Options <span class="hint">(click the circle to mark correct)</span></label>
               <div class="options-editor">
                 <div v-for="(opt, i) in form.options" :key="i" class="option-row">
@@ -181,17 +221,15 @@
               </div>
             </div>
 
-            <!-- Correct answer (non-MC) -->
-            <div v-else class="field">
+            <!-- Correct answer (non-MC, non-music) -->
+            <div v-else-if="form.type !== 'music'" class="field">
               <label>Correct Answer</label>
               <input v-model="form.correct_answer" type="text" placeholder="The answer players must match" required />
             </div>
 
-            <!-- Media URL -->
-            <div v-if="form.type !== 'multiple_choice'" class="field">
-              <label>
-                {{ form.type === 'music' ? 'Audio URL (Spotify preview)' : form.type === 'video' ? 'YouTube Embed URL' : 'Image URL' }}
-              </label>
+            <!-- Media URL (video/image only — music uses Spotify search above) -->
+            <div v-if="form.type === 'video' || form.type === 'image'" class="field">
+              <label>{{ form.type === 'video' ? 'YouTube Embed URL' : 'Image URL' }}</label>
               <input v-model="form.media_url" type="text" :placeholder="mediaPlaceholder" />
             </div>
 
@@ -272,6 +310,12 @@ const deleteTarget = ref(null)
 const formError = ref('')
 let searchDebounce = null
 
+const trackQuery = ref('')
+const trackResults = ref([])
+const trackSearching = ref(false)
+const trackError = ref('')
+const selectedTrack = ref(null)
+
 const totalPages = computed(() => total.value === null ? 1 : Math.ceil(total.value / PAGE_SIZE))
 
 const visiblePages = computed(() => {
@@ -317,7 +361,7 @@ const defaultForm = () => ({
 const form = ref(defaultForm())
 
 const mediaPlaceholder = computed(() => {
-  if (form.value.type === 'music') return 'https://p.scdn.co/mp3-preview/...'
+  if (form.value.type === 'music') return 'https://cdns-preview-….dzcdn.net/stream/...'
   if (form.value.type === 'video') return 'https://www.youtube.com/embed/VIDEO_ID'
   return 'https://example.com/image.jpg'
 })
@@ -380,10 +424,47 @@ function onSearchInput() {
   }, 300)
 }
 
+async function searchDeezer() {
+  if (!trackQuery.value.trim()) return
+  trackSearching.value = true
+  trackError.value = ''
+  trackResults.value = []
+  try {
+    const res = await axios.get(`/api/media/deezer/search?q=${encodeURIComponent(trackQuery.value.trim())}`)
+    trackResults.value = res.data
+    if (!res.data.length) trackError.value = 'No results found.'
+  } catch (err) {
+    trackError.value = err.response?.data?.error ?? 'Deezer search failed.'
+  } finally {
+    trackSearching.value = false
+  }
+}
+
+function selectTrack(track) {
+  selectedTrack.value = track
+  form.value.media_url = track.previewUrl ?? ''
+  if (!form.value.text.trim()) {
+    form.value.text = 'Name this song:'
+  }
+  const others = trackResults.value.filter(t => t.id !== track.id).map(t => t.name)
+  const decoys = others.slice(0, 3)
+  while (decoys.length < 3) decoys.push('')
+  form.value.options = [track.name, ...decoys]
+  form.value.correct_answer = track.name
+}
+
+function resetTrack() {
+  trackQuery.value = ''
+  trackResults.value = []
+  trackError.value = ''
+  selectedTrack.value = null
+}
+
 function openAdd() {
   editingId.value = null
   form.value = defaultForm()
   formError.value = ''
+  resetTrack()
   showModal.value = true
 }
 
@@ -401,11 +482,13 @@ function openEdit(q) {
     difficulty: q.difficulty ?? null,
   }
   formError.value = ''
+  resetTrack()
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
+  resetTrack()
 }
 
 function syncCorrectAnswer() {
@@ -428,7 +511,7 @@ async function saveQuestion() {
   if (!f.text.trim()) return (formError.value = 'Question text is required.')
   if (!f.correct_answer.trim()) return (formError.value = 'Correct answer is required.')
 
-  if (f.type === 'multiple_choice') {
+  if (f.type === 'multiple_choice' || f.type === 'music') {
     const filled = f.options.filter(o => o.trim())
     if (filled.length < 2) return (formError.value = 'At least 2 options required.')
     if (!filled.includes(f.correct_answer)) return (formError.value = 'Mark one option as the correct answer.')
@@ -439,7 +522,7 @@ async function saveQuestion() {
     type: f.type,
     category_id: f.category_id || null,
     correct_answer: f.correct_answer.trim(),
-    options: f.type === 'multiple_choice' ? f.options.filter(o => o.trim()) : null,
+    options: (f.type === 'multiple_choice' || f.type === 'music') ? f.options.filter(o => o.trim()) : null,
     media_url: f.media_url.trim() || null,
     points: f.points,
     time_limit: f.time_limit,
@@ -627,6 +710,29 @@ select option { background: var(--surface-2); }
 
 .form-error { color: var(--danger); font-size: 0.9rem; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+.track-search-row { display: flex; gap: 8px; }
+.track-input { flex: 1; }
+.track-error { font-size: 0.85rem; color: var(--danger); margin-top: 6px; }
+.track-results { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 280px; overflow-y: auto; }
+.track-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-radius: var(--radius); border: 1px solid var(--border);
+  cursor: pointer; transition: border-color 0.15s;
+}
+.track-row:hover { border-color: var(--primary); }
+.track-row.selected { border-color: var(--success); background: rgba(44,182,125,0.06); }
+.track-art { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.track-art-placeholder { width: 44px; height: 44px; border-radius: 4px; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
+.track-info { flex: 1; min-width: 0; }
+.track-name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-artist { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.selected-badge { font-size: 0.75rem; color: var(--success); font-weight: 700; flex-shrink: 0; }
+.selected-track-summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius); background: var(--surface-2); font-size: 0.85rem; margin-top: 8px; flex-wrap: wrap; }
+.st-label { color: var(--text-muted); }
+.st-name { font-weight: 700; }
+.st-artist { color: var(--text-muted); }
+.st-warn { color: var(--warning, #f59e0b); font-size: 0.8rem; }
 
 .confirm-modal { max-width: 400px; text-align: center; }
 .confirm-modal h2 { margin-bottom: 12px; }

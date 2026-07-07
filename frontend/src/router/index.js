@@ -5,6 +5,7 @@ import HostView from '../views/HostView.vue'
 import JoinView from '../views/JoinView.vue'
 import PlayView from '../views/PlayView.vue'
 import ScreenView from '../views/ScreenView.vue'
+import ScreenAutoView from '../views/ScreenAutoView.vue'
 import ManageView from '../views/ManageView.vue'
 import { getSavedLocale } from '../i18n/index.js'
 
@@ -24,6 +25,7 @@ const router = createRouter({
     { path: '/host', component: HostView },
     { path: '/join', component: JoinView },
     { path: '/play', component: PlayView },
+    { path: '/screen', component: ScreenAutoView },
     { path: '/screen/:code', component: ScreenView },
     { path: '/manage', component: ManageView },
   ],

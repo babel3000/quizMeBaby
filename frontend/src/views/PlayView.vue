@@ -1,6 +1,21 @@
 <template>
   <div class="play-view">
 
+    <!-- Reveal countdown overlay -->
+    <Transition name="countdown">
+      <div v-if="revealCountdown" class="reveal-overlay">
+        <span class="reveal-number">{{ revealCountdown }}</span>
+      </div>
+    </Transition>
+
+    <!-- Reconnecting overlay -->
+    <div v-if="reconnecting" class="reconnect-overlay">
+      <div class="reconnect-box">
+        <div class="spinner" />
+        <p>{{ $t('game.reconnecting') }}</p>
+      </div>
+    </div>
+
     <!-- Waiting in lobby -->
     <div v-if="game.status === 'lobby'" class="page-center">
       <div class="card lobby-card">
@@ -40,12 +55,25 @@
         <Timer :seconds="game.timeLimit" :key="game.questionIndex" class="q-timer" />
       </div>
 
+      <div v-if="game.roundType === 'chaos' && game.questionModifier" class="chaos-mod-banner">
+        {{ $t('roundTypes.chaosMod', { mod: $t(`roundTypes.${game.questionModifier}`) }) }}
+      </div>
+
+      <!-- Music player bar -->
+      <div v-if="displayedQuestion?.type === 'music'" class="music-player-bar" :class="{ playing: musicPlaying }">
+        <div class="music-note-icon">🎵</div>
+        <div class="music-status">{{ musicPlaying ? $t('game.musicPlaying') : $t('game.musicWaiting') }}</div>
+        <div v-if="musicPlaying" class="music-bars">
+          <span /><span /><span /><span />
+        </div>
+      </div>
+
       <!-- Answer area -->
       <div v-if="!game.myAnswer" class="answer-area">
         <h2 class="question-text">{{ displayedQuestion?.text }}</h2>
 
-        <!-- Multiple choice -->
-        <div v-if="displayedQuestion?.type === 'multiple_choice'" class="options-grid">
+        <!-- Multiple choice (also used for music questions) -->
+        <div v-if="displayedQuestion?.type === 'multiple_choice' || displayedQuestion?.type === 'music'" class="options-grid">
           <button
             v-for="(opt, i) in displayedQuestion.options"
             :key="opt"
@@ -135,6 +163,13 @@
           <span v-if="game.myAnswer?.pointsAwarded > 0">+{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
           <span v-else-if="game.myAnswer?.pointsAwarded < 0" class="penalty-text">{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
         </div>
+        <div v-if="isLoneWolfRound" class="lone-wolf-banner" :class="{ winner: isLoneWolfWinner }">
+          {{ isLoneWolfWinner
+            ? $t('roundTypes.loneWolfYouWon')
+            : game.lastResult?.loneWolfWinner
+              ? $t('roundTypes.loneWolfWon', { nickname: game.lastResult.loneWolfWinner.nickname })
+              : $t('roundTypes.loneWolfNobody') }}
+        </div>
         <Scoreboard :players="game.scoreboard" :highlight-id="player.id" :show-delta="true" />
 
         <div v-if="game.lastResult?.isLastQuestion" class="round-complete-notice">
@@ -184,10 +219,43 @@ const textAnswer = ref('')
 const countdown = ref(3)
 const myConsecutiveSkips = ref(0)
 const myStreak = ref(0)
+const reconnecting = ref(false)
+const revealCountdown = ref(null)
 
 const initials = computed(() =>
   player.nickname.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 )
+
+const isLoneWolfRound = computed(() => {
+  const effective = game.roundType === 'chaos' ? game.questionModifier : game.roundType
+  return effective === 'lone_wolf'
+})
+const isLoneWolfWinner = computed(() =>
+  game.lastResult?.loneWolfWinner?.id === player.id
+)
+
+const musicPlaying = ref(false)
+let audioEl = null
+
+function getAudio() {
+  if (!audioEl) audioEl = new Audio()
+  return audioEl
+}
+
+const onMusicPlay = () => {
+  const url = game.currentQuestion?.media_url
+  if (!url) return
+  const audio = getAudio()
+  audio.src = url
+  audio.currentTime = 0
+  audio.play().catch(() => {})
+  musicPlaying.value = true
+}
+
+const onMusicStop = () => {
+  if (audioEl) { audioEl.pause(); audioEl.currentTime = 0 }
+  musicPlaying.value = false
+}
 
 // Per-player language preference — independent of room language
 const displayedLang = computed(() => game.playerLanguage || game.language)
@@ -232,13 +300,31 @@ const nextSkipPenaltyMult = computed(() => {
   return mult.toFixed(2).replace(/\.?0+$/, '')
 })
 
+let countdownTimer = null
+const onPreparingReveal = ({ countdown }) => {
+  revealCountdown.value = countdown
+  countdownTimer = setInterval(() => {
+    revealCountdown.value--
+    if (revealCountdown.value <= 0) {
+      clearInterval(countdownTimer)
+      revealCountdown.value = null
+    }
+  }, 1000)
+}
+
 const onGameStarted = ({ totalQuestions }) => {
   game.totalQuestions = totalQuestions
   game.setStatus('starting')
   let c = 3
   const t = setInterval(() => { c--; countdown.value = c; if (c <= 0) clearInterval(t) }, 1000)
 }
-const onQuestion = data => { textAnswer.value = ''; game.setQuestion(data) }
+const onQuestion = data => {
+  textAnswer.value = ''
+  revealCountdown.value = null
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  musicPlaying.value = false
+  game.setQuestion(data)
+}
 const onAnswerReceived = result => {
   game.setMyAnswer(result)
   player.addScore(result.pointsAwarded)
@@ -250,7 +336,64 @@ const onSkipConfirmed = ({ consecutiveSkips }) => {
   game.setMyAnswer({ skipped: true, isCorrect: false, pointsAwarded: 0, forcedPenalty: false })
 }
 const onResultsRevealed = data => game.setResults(data)
-const onGameEnded = data => game.endGame(data)
+const onGameEnded = data => {
+  game.endGame(data)
+  localStorage.removeItem('reconnect')
+}
+
+function tryRejoin() {
+  const saved = localStorage.getItem('reconnect')
+  if (!saved) return
+  const { code, playerId } = JSON.parse(saved)
+  reconnecting.value = true
+  socket.emit('rejoin_session', { code, playerId })
+}
+
+const onRejoined = ({ code: roomCode, player: me, status, question, questionIndex,
+  totalQuestions, scoreboard, players, language, roundType, questionModifier,
+  myAnswer, lastResult }) => {
+  reconnecting.value = false
+  player.setPlayer(me)
+  game.setCode(roomCode)
+  game.setPlayers(players)
+  game.setLanguage(language ?? 'en')
+  setLocale(language ?? 'en')
+  game.roundType = roundType ?? 'normal'
+  game.questionModifier = questionModifier ?? null
+  game.scoreboard = scoreboard ?? []
+  game.totalQuestions = totalQuestions
+
+  if (status === 'active' && question) {
+    game.currentQuestion = question
+    game.questionIndex = questionIndex
+    game.timeLimit = question.time_limit ?? 30
+    game.myAnswer = myAnswer ?? null
+    game.setStatus('question')
+  } else if (status === 'results' && lastResult) {
+    game.currentQuestion = question
+    game.questionIndex = questionIndex
+    game.setResults(lastResult)
+    if (myAnswer) game.myAnswer = myAnswer
+  } else {
+    game.setStatus(status === 'lobby' ? 'lobby' : 'idle')
+  }
+}
+
+const onRejoinError = ({ message }) => {
+  reconnecting.value = false
+  localStorage.removeItem('reconnect')
+  console.warn('Rejoin failed:', message)
+}
+
+const onSocketConnect = () => {
+  // Only rejoin if we lost state (page reload) or just reconnected mid-game
+  if (game.status !== 'idle' || !localStorage.getItem('reconnect')) return
+  tryRejoin()
+}
+
+const onSocketDisconnect = () => {
+  if (game.status !== 'idle') reconnecting.value = true
+}
 const onPlayerJoined = ({ players }) => game.setPlayers(players)
 const onPlayerLeft = ({ players }) => game.setPlayers(players)
 const onShowScoreboard = ({ scoreboard, roundType }) => {
@@ -275,6 +418,16 @@ onMounted(() => {
   socket.on('hide_scoreboard', onHideScoreboard)
   socket.on('round_type_changed', onRoundTypeChanged)
   socket.on('language_changed', onLanguageChanged)
+  socket.on('preparing_reveal', onPreparingReveal)
+  socket.on('music_play', onMusicPlay)
+  socket.on('music_stop', onMusicStop)
+  socket.on('rejoined_session', onRejoined)
+  socket.on('rejoin_error', onRejoinError)
+  socket.on('connect', onSocketConnect)
+  socket.on('disconnect', onSocketDisconnect)
+
+  // Auto-rejoin on page reload if we have stored session data
+  if (game.status === 'idle' && localStorage.getItem('reconnect')) tryRejoin()
 })
 
 onUnmounted(() => {
@@ -290,6 +443,14 @@ onUnmounted(() => {
   socket.off('hide_scoreboard', onHideScoreboard)
   socket.off('round_type_changed', onRoundTypeChanged)
   socket.off('language_changed', onLanguageChanged)
+  socket.off('preparing_reveal', onPreparingReveal)
+  socket.off('music_play', onMusicPlay)
+  socket.off('music_stop', onMusicStop)
+  socket.off('rejoined_session', onRejoined)
+  socket.off('rejoin_error', onRejoinError)
+  socket.off('connect', onSocketConnect)
+  socket.off('disconnect', onSocketDisconnect)
+  onMusicStop()
 })
 
 function skipQuestion() {
@@ -509,6 +670,17 @@ function skipQuestion() {
 .my-result.skipped  { background: rgba(255,200,50,0.1);  color: #ffc832; }
 .penalty-text { color: var(--danger); }
 
+.lone-wolf-banner {
+  text-align: center; padding: 12px 16px; border-radius: var(--radius);
+  font-size: 1rem; font-weight: 700;
+  background: rgba(99,102,241,0.1); color: var(--text-muted);
+  border: 1px solid rgba(99,102,241,0.2);
+}
+.lone-wolf-banner.winner {
+  background: rgba(250,204,21,0.15); color: #eab308;
+  border-color: rgba(250,204,21,0.35);
+}
+
 /* ── Round complete notice ──────────────────── */
 .round-complete-notice {
   text-align: center; padding: 20px 16px;
@@ -536,5 +708,87 @@ function skipQuestion() {
 
   /* Results card full bleed */
   .results-card, .end-card { max-width: 100%; }
+}
+
+.reveal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  pointer-events: none;
+}
+.reveal-number {
+  font-size: 10rem;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  text-shadow: 0 0 60px var(--primary);
+}
+.countdown-enter-active, .countdown-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.countdown-enter-from, .countdown-leave-to { opacity: 0; transform: scale(1.5); }
+
+.reconnect-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.reconnect-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255,255,255,0.15);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.chaos-mod-banner {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(99,102,241,0.15);
+  color: #a5b4fc;
+  margin-bottom: 12px;
+}
+
+.music-player-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; border-radius: 12px; margin-bottom: 12px;
+  background: rgba(30,215,96,0.08); border: 1px solid rgba(30,215,96,0.2);
+  color: var(--text-muted);
+}
+.music-player-bar.playing { color: #1ed760; border-color: rgba(30,215,96,0.4); background: rgba(30,215,96,0.12); }
+.music-note-icon { font-size: 1.4rem; flex-shrink: 0; }
+.music-status { flex: 1; font-weight: 600; font-size: 0.9rem; }
+.music-bars { display: flex; align-items: flex-end; gap: 3px; height: 20px; }
+.music-bars span {
+  width: 4px; border-radius: 2px; background: #1ed760;
+  animation: music-bar 0.8s ease-in-out infinite alternate;
+}
+.music-bars span:nth-child(1) { animation-delay: 0s; }
+.music-bars span:nth-child(2) { animation-delay: 0.15s; }
+.music-bars span:nth-child(3) { animation-delay: 0.3s; }
+.music-bars span:nth-child(4) { animation-delay: 0.45s; }
+@keyframes music-bar {
+  from { height: 4px; }
+  to   { height: 18px; }
 }
 </style>

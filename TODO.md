@@ -17,11 +17,20 @@ _Nothing active right now._
 
 ## Up next
 - [ ] Streak tracking display refinement (show streak count on player screen)
-- [ ] Lone Wolf: notify first-correct team they won the round
-- [ ] Screen view: show active round type banner during question
+
+## Done (recent)
+- [x] Music round — Deezer search in question manager, host play/stop controls, 30s preview audio on player + screen views
+- [x] Lone Wolf: notify first-correct team they won the round
+- [x] Screen view: show active round type banner during question
+- [x] Chaos round type (random scoring rule per question)
+- [x] Screen auto-discovery at /screen (no room code needed)
+- [x] Reconnect handling — team rejoins mid-game and keeps score
+- [x] Answer times per team (with decimal) on results screens
+- [x] Dramatic 3-2-1 countdown before revealing correct answer
+- [x] Results only shown when everyone has answered
+- [x] Host can customize next question time from results screen
 
 ## Backlog — features
-- [ ] Spotify integration — music round questions with 30s preview
 - [ ] Music round: play two songs simultaneously (Web Audio API mixing)
 - [ ] Music round: play a song in reverse (AudioBuffer channel reversal)
 - [ ] Music round: play a song at 3× speed (AudioBufferSourceNode.playbackRate)
@@ -37,7 +46,7 @@ _Nothing active right now._
 ## Backlog — polish & UX
 - [ ] ScoreTable: rank movement arrows (↑↓ vs previous round)
 - [ ] Team avatar / colour picker on join screen
-- [ ] Reconnect handling — team rejoins mid-game and keeps score
+- [x] Reconnect handling — team rejoins mid-game and keeps score
 - [ ] Host can kick a team from the lobby
 - [ ] Configurable time limits and points per question from host UI
 
