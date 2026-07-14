@@ -108,6 +108,7 @@ async function translateBatch(questions) {
 Rules:
 - Use European Portuguese (Portugal), NOT Brazilian Portuguese
 - Keep proper nouns, film/song/book titles, brand names, and acronyms unchanged
+- Keep sports team names and club names unchanged (e.g. "Manchester United", "Los Angeles Lakers", "New Zealand All Blacks")
 - Keep numbers and dates unchanged
 - Return ONLY valid JSON, no explanation, same array length as input
 

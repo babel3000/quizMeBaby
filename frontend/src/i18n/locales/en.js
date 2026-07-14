@@ -58,6 +58,7 @@ export default {
     skipCount: '{n}/4 skips',
     streakCount: '{n} streak',
     streakLabel: '🔥 {n} in a row!',
+    streakBroken: 'Streak of {n} broken',
     skipPenaltyWarning: '⚠ wrong answer costs ×{mult} + speed',
     skipMustAnswer: '⚠ Must answer — or get penalised!',
     correct: 'Correct!',

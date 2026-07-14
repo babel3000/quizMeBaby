@@ -58,6 +58,7 @@ export default {
     skipCount: '{n}/4 saltos',
     streakCount: '{n} seguidos',
     streakLabel: '🔥 {n} seguidas!',
+    streakBroken: 'Sequência de {n} interrompida',
     skipPenaltyWarning: '⚠ resposta errada custa ×{mult} + velocidade',
     skipMustAnswer: '⚠ Tens de responder — senão és penalizado!',
     correct: 'Correto!',

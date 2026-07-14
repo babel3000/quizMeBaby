@@ -46,8 +46,9 @@
       <!-- Sticky top bar -->
       <div class="q-topbar">
         <span class="badge badge-primary">{{ $t('game.questionOf', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</span>
-        <span v-if="myStreak >= 2" class="streak-chip" :class="{ 'streak-hot': game.roundType === 'hot_streak' }">
+        <span v-if="myStreak >= 2" class="streak-chip" :class="{ 'streak-hot': isHotStreakRound }">
           🔥 {{ $t('game.streakCount', { n: myStreak }) }}
+          <span v-if="isHotStreakRound" class="streak-mult">×{{ streakMult }}</span>
         </span>
         <span v-if="myConsecutiveSkips > 0" class="skip-count-chip" :class="{ danger: myConsecutiveSkips >= 4 }">
           ↷ {{ $t('game.skipCount', { n: myConsecutiveSkips }) }}
@@ -138,6 +139,10 @@
         </p>
         <p v-if="game.myAnswer.isCorrect && myStreak >= 2" class="feedback-streak">
           {{ $t('game.streakLabel', { n: myStreak }) }}
+          <span v-if="isHotStreakRound" class="feedback-streak-mult">×{{ streakMult }}</span>
+        </p>
+        <p v-else-if="!game.myAnswer.isCorrect && !game.myAnswer.skipped && prevStreak >= 2" class="feedback-streak-broken">
+          {{ $t('game.streakBroken', { n: prevStreak }) }}
         </p>
         <p v-else-if="game.myAnswer.pointsAwarded < 0" class="feedback-pts penalty">
           {{ game.myAnswer.pointsAwarded.toLocaleString() }}
@@ -163,6 +168,10 @@
           <span v-if="game.myAnswer?.pointsAwarded > 0">+{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
           <span v-else-if="game.myAnswer?.pointsAwarded < 0" class="penalty-text">{{ game.myAnswer.pointsAwarded.toLocaleString() }} {{ $t('results.pts') }}</span>
         </div>
+        <p v-if="myStreak >= 2" class="results-streak">
+          🔥 {{ $t('game.streakLabel', { n: myStreak }) }}
+          <span v-if="isHotStreakRound" class="results-streak-mult">×{{ streakMult }}</span>
+        </p>
         <div v-if="isLoneWolfRound" class="lone-wolf-banner" :class="{ winner: isLoneWolfWinner }">
           {{ isLoneWolfWinner
             ? $t('roundTypes.loneWolfYouWon')
@@ -219,6 +228,7 @@ const textAnswer = ref('')
 const countdown = ref(3)
 const myConsecutiveSkips = ref(0)
 const myStreak = ref(0)
+const prevStreak = ref(0)
 const reconnecting = ref(false)
 const revealCountdown = ref(null)
 
@@ -226,9 +236,17 @@ const initials = computed(() =>
   player.nickname.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 )
 
+const isHotStreakRound = computed(() => {
+  const effective = game.roundType === 'chaos' ? game.questionModifier : game.roundType
+  return effective === 'hot_streak'
+})
 const isLoneWolfRound = computed(() => {
   const effective = game.roundType === 'chaos' ? game.questionModifier : game.roundType
   return effective === 'lone_wolf'
+})
+const streakMult = computed(() => {
+  const m = 1 + 0.25 * Math.min(myStreak.value, 4)
+  return Number.isInteger(m) ? m : m.toFixed(2)
 })
 const isLoneWolfWinner = computed(() =>
   game.lastResult?.loneWolfWinner?.id === player.id
@@ -326,6 +344,7 @@ const onQuestion = data => {
   game.setQuestion(data)
 }
 const onAnswerReceived = result => {
+  prevStreak.value = myStreak.value
   game.setMyAnswer(result)
   player.addScore(result.pointsAwarded)
   myConsecutiveSkips.value = result.consecutiveSkips
@@ -530,8 +549,24 @@ function skipQuestion() {
 .skip-count-chip.danger {
   color: var(--danger); background: rgba(233,69,96,0.15);
 }
+.streak-mult {
+  font-size: 0.85em; opacity: 0.85; margin-left: 4px;
+}
 .feedback-streak {
   font-size: 1rem; font-weight: 700; color: #ff9f43; margin-top: -4px;
+}
+.feedback-streak-mult {
+  font-size: 0.85em; opacity: 0.8; margin-left: 4px;
+}
+.feedback-streak-broken {
+  font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-top: -4px;
+}
+.results-streak {
+  font-size: 0.95rem; font-weight: 700; color: #ff9f43;
+  text-align: center; margin: 4px 0 8px;
+}
+.results-streak-mult {
+  font-size: 0.85em; opacity: 0.8; margin-left: 4px;
 }
 
 .q-timer { margin-left: auto; }

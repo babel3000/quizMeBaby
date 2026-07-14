@@ -19,19 +19,19 @@ async function getAccessToken() {
   return tokenCache.token
 }
 
-export async function searchTrack(query) {
+export async function searchTrack(query, limit = 10) {
   const token = await getAccessToken()
   const { data } = await axios.get('https://api.spotify.com/v1/search', {
     headers: { Authorization: `Bearer ${token}` },
-    params: { q: query, type: 'track', limit: 5 },
+    params: { q: query, type: 'track', limit },
   })
   return data.tracks.items.map(t => ({
     id: t.id,
     name: t.name,
-    artist: t.artists[0].name,
+    artist: t.artists.map(a => a.name).join(', '),
     album: t.album.name,
     previewUrl: t.preview_url,
-    albumArt: t.album.images[0]?.url,
+    albumArt: t.album.images[1]?.url ?? t.album.images[0]?.url ?? null,
   }))
 }
 
