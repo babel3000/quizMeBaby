@@ -188,7 +188,7 @@
             </div>
 
             <!-- Multiple choice options -->
-            <div v-if="form.type === 'multiple_choice' || form.type === 'music'" class="field">
+            <div v-if="form.type === 'multiple_choice' || form.type === 'music' || form.type === 'image'" class="field">
               <label>Options <span class="hint">(click the circle to mark correct)</span></label>
               <div class="options-editor">
                 <div v-for="(opt, i) in form.options" :key="i" class="option-row">
@@ -221,15 +221,57 @@
               </div>
             </div>
 
-            <!-- Correct answer (non-MC, non-music) -->
-            <div v-else-if="form.type !== 'music'" class="field">
+            <!-- Correct answer (non-MC, non-music, non-image) -->
+            <div v-else-if="form.type !== 'music' && form.type !== 'image'" class="field">
               <label>Correct Answer</label>
               <input v-model="form.correct_answer" type="text" placeholder="The answer players must match" required />
             </div>
 
-            <!-- Media URL (video/image only — music uses Spotify search above) -->
-            <div v-if="form.type === 'video' || form.type === 'image'" class="field">
-              <label>{{ form.type === 'video' ? 'YouTube Embed URL' : 'Image URL' }}</label>
+            <!-- Image search (image type only) -->
+            <div v-if="form.type === 'image'" class="field">
+              <label>Search Pixabay</label>
+              <div class="track-search-row">
+                <input
+                  v-model="imageQuery"
+                  type="search"
+                  placeholder="Search for flags, logos, landmarks…"
+                  class="track-input"
+                  @keyup.enter="searchImages"
+                />
+                <button type="button" class="btn btn-secondary" :disabled="imageSearching" @click="searchImages">
+                  {{ imageSearching ? '…' : '🔍 Search' }}
+                </button>
+              </div>
+              <div v-if="imageError" class="track-error">{{ imageError }}</div>
+              <div v-if="imageResults.length" class="image-grid">
+                <div
+                  v-for="img in imageResults"
+                  :key="img.id"
+                  class="image-thumb"
+                  :class="{ selected: selectedImage?.id === img.id }"
+                  @click="selectImage(img)"
+                  :title="img.tags"
+                >
+                  <img :src="img.thumbUrl" :alt="img.tags" />
+                  <div v-if="selectedImage?.id === img.id" class="image-check">✓</div>
+                </div>
+              </div>
+              <div v-if="selectedImage" class="selected-track-summary">
+                <span class="st-label">Selected:</span>
+                <span class="st-name">{{ selectedImage.tags.split(',')[0].trim() }}</span>
+                <span class="st-artist">by {{ selectedImage.user }} · Pixabay</span>
+              </div>
+            </div>
+
+            <!-- Media URL (image URL field, hidden when search result is selected) -->
+            <div v-if="form.type === 'image'" class="field">
+              <label>Image URL <span class="hint">(auto-filled from search, or paste your own)</span></label>
+              <input v-model="form.media_url" type="text" placeholder="https://…" />
+            </div>
+
+            <!-- Media URL (video only) -->
+            <div v-else-if="form.type === 'video'" class="field">
+              <label>YouTube Embed URL</label>
               <input v-model="form.media_url" type="text" :placeholder="mediaPlaceholder" />
             </div>
 
@@ -315,6 +357,12 @@ const trackResults = ref([])
 const trackSearching = ref(false)
 const trackError = ref('')
 const selectedTrack = ref(null)
+
+const imageQuery = ref('')
+const imageResults = ref([])
+const imageSearching = ref(false)
+const imageError = ref('')
+const selectedImage = ref(null)
 
 const totalPages = computed(() => total.value === null ? 1 : Math.ceil(total.value / PAGE_SIZE))
 
@@ -475,11 +523,41 @@ function resetTrack() {
   selectedTrack.value = null
 }
 
+async function searchImages() {
+  if (!imageQuery.value.trim()) return
+  imageSearching.value = true
+  imageError.value = ''
+  imageResults.value = []
+  try {
+    const res = await axios.get(`/api/media/images/search?q=${encodeURIComponent(imageQuery.value.trim())}`)
+    imageResults.value = res.data
+    if (!res.data.length) imageError.value = 'No results found.'
+  } catch (err) {
+    imageError.value = err.response?.data?.error ?? 'Image search failed.'
+  } finally {
+    imageSearching.value = false
+  }
+}
+
+function selectImage(img) {
+  selectedImage.value = img
+  form.value.media_url = img.url
+  if (!form.value.text.trim()) form.value.text = 'What is this?'
+}
+
+function resetImage() {
+  imageQuery.value = ''
+  imageResults.value = []
+  imageError.value = ''
+  selectedImage.value = null
+}
+
 function openAdd() {
   editingId.value = null
   form.value = defaultForm()
   formError.value = ''
   resetTrack()
+  resetImage()
   showModal.value = true
 }
 
@@ -498,12 +576,14 @@ function openEdit(q) {
   }
   formError.value = ''
   resetTrack()
+  resetImage()
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
   resetTrack()
+  resetImage()
 }
 
 function syncCorrectAnswer() {
@@ -526,7 +606,7 @@ async function saveQuestion() {
   if (!f.text.trim()) return (formError.value = 'Question text is required.')
   if (!f.correct_answer.trim()) return (formError.value = 'Correct answer is required.')
 
-  if (f.type === 'multiple_choice' || f.type === 'music') {
+  if (f.type === 'multiple_choice' || f.type === 'music' || f.type === 'image') {
     const filled = f.options.filter(o => o.trim())
     if (filled.length < 2) return (formError.value = 'At least 2 options required.')
     if (!filled.includes(f.correct_answer)) return (formError.value = 'Mark one option as the correct answer.')
@@ -537,7 +617,7 @@ async function saveQuestion() {
     type: f.type,
     category_id: f.category_id || null,
     correct_answer: f.correct_answer.trim(),
-    options: (f.type === 'multiple_choice' || f.type === 'music') ? f.options.filter(o => o.trim()) : null,
+    options: (f.type === 'multiple_choice' || f.type === 'music' || f.type === 'image') ? f.options.filter(o => o.trim()) : null,
     media_url: f.media_url.trim() || null,
     points: f.points,
     time_limit: f.time_limit,
@@ -754,6 +834,26 @@ select option { background: var(--surface-2); }
 .confirm-text { font-style: italic; color: var(--text-muted); margin-bottom: 8px; }
 .confirm-hint { font-size: 0.85rem; color: var(--danger); margin-bottom: 24px; }
 .confirm-modal .modal-actions { justify-content: center; }
+
+.image-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin-top: 10px; max-height: 280px; overflow-y: auto;
+}
+.image-thumb {
+  position: relative; border-radius: var(--radius); overflow: hidden;
+  border: 2px solid transparent; cursor: pointer; aspect-ratio: 4/3;
+  transition: border-color 0.15s;
+}
+.image-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.image-thumb:hover { border-color: var(--primary); }
+.image-thumb.selected { border-color: var(--success); }
+.image-check {
+  position: absolute; top: 4px; right: 4px;
+  background: var(--success); color: white;
+  border-radius: 50%; width: 20px; height: 20px;
+  font-size: 0.7rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
 
 /* Pagination */
 .pagination {
