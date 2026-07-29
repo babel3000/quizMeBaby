@@ -4,6 +4,7 @@
 _Nothing active right now._
 
 ## Done
+- [x] Host question preview — host sees Q + answer before players; `begin_question` starts the timer
 - [x] Scoring system rewrite (base + speed + first-answer bonus + wrong penalty)
 - [x] Skip mechanic (skip button, 4-skip limit, multiplier tracking per team)
 - [x] Round types: Normal / Hot Streak / Safety Net / Lone Wolf / Double Down

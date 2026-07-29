@@ -82,7 +82,7 @@ export function registerHandlers(io, socket) {
 
     session.startGame(questions, roundType)
     io.to(code).emit('game_started', { totalQuestions: questions.length, language: session.language, roundType })
-    setTimeout(() => session.startQuestion(io), 3000)
+    setTimeout(() => session.previewQuestion(io), 3000)
   })
 
   socket.on('submit_answer', ({ code, answer } = {}) => {
@@ -196,19 +196,28 @@ export function registerHandlers(io, socket) {
   socket.on('reveal_results', ({ code } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
+    if (session.status !== 'active') return
     session.prepareReveal(io)
   })
 
   socket.on('next_question', ({ code, timeOverride } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
+    if (session.status === 'preview') return
     if (timeOverride > 0) session.nextQuestionTimeOverride = timeOverride
-    session.startQuestion(io)
+    session.previewQuestion(io)
+  })
+
+  socket.on('begin_question', ({ code } = {}) => {
+    const session = getSession(code)
+    if (!session || session.hostSocketId !== socket.id) return
+    session.broadcastQuestion(io)
   })
 
   socket.on('play_music', ({ code } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
+    if (session.status !== 'active') return
     io.to(code).emit('music_play')
   })
 

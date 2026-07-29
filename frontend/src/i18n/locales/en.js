@@ -53,6 +53,8 @@ export default {
     musicPlaying: 'Now playing…',
     musicWaiting: 'Waiting for host to play track…',
     waitingForHost: 'Waiting for host to start the game…',
+    waitingForQuestion: 'Waiting for the host…',
+    waitingForQuestionSub: 'The host is reading the next question',
     waitingForResults: 'Waiting for results…',
     skip: 'Skip ↷',
     skipCount: '{n}/4 skips',
@@ -71,6 +73,11 @@ export default {
     finalScores: '🏆 Final Scores',
     playAgain: 'Play Again',
     answered: '{n} / {total} answered',
+    previewBadge: 'PREVIEW',
+    previewSub: 'Players are waiting — read it aloud, then start the timer',
+    startQuestion: '▶ Start Question',
+    previewAudio: 'Play 10s preview',
+    pausePreviewAudio: 'Pause',
   },
 
   results: {
@@ -115,6 +122,8 @@ export default {
     connecting: 'Connecting…',
     multipleGames: 'Multiple active games — pick one:',
     players: 'players',
+    waitingForQuestion: 'Get ready for question {n}',
+    waitingForQuestionSub: 'The host is preparing…',
   },
 
   lobby: {

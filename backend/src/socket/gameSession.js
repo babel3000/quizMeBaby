@@ -95,24 +95,47 @@ export class GameSession {
     this.currentQuestionIndex = -1
   }
 
-  startQuestion(io) {
+  previewQuestion(io) {
     this.currentQuestionIndex++
+    if (this.roundType === 'chaos') {
+      this.questionModifier = CHAOS_MODIFIERS[Math.floor(Math.random() * CHAOS_MODIFIERS.length)]
+    } else {
+      this.questionModifier = null
+    }
+    for (const player of this.players.values()) {
+      player.scoreBeforeQuestion = player.score
+      player.skippedThisQuestion = false
+    }
+    const question = this.getCurrentQuestion()
+    if (!question) return false
+
+    this.status = 'preview'
+
+    const pending = {
+      index: this.currentQuestionIndex,
+      total: this.questions.length,
+      roundType: this.roundType,
+    }
+    // Players/screen wait; only the host sees the question (+ answer) during preview
+    io.to(this.code).except(this.hostSocketId).emit('question_pending', pending)
+    io.to(this.hostSocketId).emit('question_preview', {
+      ...pending,
+      question: { ...question, correct_answer: this.questions[this.currentQuestionIndex].correct_answer },
+      questionModifier: this.questionModifier,
+    })
+    return true
+  }
+
+  broadcastQuestion(io) {
+    if (this.status !== 'preview') return false
+
+    this.status = 'active'
     this.questionAnswers = new Map()
     this.questionStartTime = Date.now()
     this.firstCorrectThisQuestion = false
     this.loneWolfWinner = null
     this.revealPending = false
     if (this.revealTimer) { clearTimeout(this.revealTimer); this.revealTimer = null }
-    if (this.roundType === 'chaos') {
-      this.questionModifier = CHAOS_MODIFIERS[Math.floor(Math.random() * CHAOS_MODIFIERS.length)]
-    } else {
-      this.questionModifier = null
-    }
-
-    for (const player of this.players.values()) {
-      player.scoreBeforeQuestion = player.score
-      player.skippedThisQuestion = false
-    }
 
     const question = this.getCurrentQuestion()
     if (!question) return false
@@ -275,7 +298,20 @@ export class GameSession {
   }
 
   getCurrentState(socketId) {
-    const question = this.getCurrentQuestion()
+    const isHost = socketId === this.hostSocketId
+    // During preview, only the host may see the question (with answer)
+    let question = null
+    if (this.status === 'preview' && isHost) {
+      const q = this.getCurrentQuestion()
+      if (q) {
+        question = { ...q, correct_answer: this.questions[this.currentQuestionIndex].correct_answer }
+      }
+    } else if (this.status === 'active') {
+      question = this.getCurrentQuestion()
+    } else if (this.status === 'results') {
+      question = this.getCurrentQuestion()
+    }
+
     const myAnswer = this.questionAnswers.get(socketId) ?? null
     let lastResult = null
 

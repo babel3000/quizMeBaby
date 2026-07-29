@@ -124,7 +124,7 @@
     </div>
 
     <!-- Active game - host control panel -->
-    <div v-else-if="['starting','question','results'].includes(game.status)" class="host-game">
+    <div v-else-if="['starting','preview','question','results'].includes(game.status)" class="host-game">
       <div class="host-header">
         <span class="badge badge-primary">{{ game.questionIndex + 1 }} / {{ game.totalQuestions }}</span>
         <span class="rt-pill-sm" :class="`rt-${game.roundType}`">{{ roundTypeLabel }}</span>
@@ -135,6 +135,36 @@
       <div v-if="game.status === 'starting'" class="countdown-panel card">
         <p>{{ $t('game.getReady') }}</p>
         <div class="countdown-number">{{ countdown }}</div>
+      </div>
+
+      <!-- Question preview (host-only, before players see it) -->
+      <div v-else-if="game.status === 'preview'" class="preview-panel card">
+        <div class="preview-header">
+          <span class="preview-badge">{{ $t('game.previewBadge') }}</span>
+          <span class="preview-sub">{{ $t('game.previewSub') }}</span>
+        </div>
+        <div v-if="game.roundType === 'chaos' && previewData?.questionModifier" class="chaos-mod-banner">
+          {{ $t('roundTypes.chaosMod', { mod: $t(`roundTypes.${previewData.questionModifier}`) }) }}
+        </div>
+        <QuestionCard :question="previewQuestionCard" :show-answer="true" :correct-answer="previewQuestionCard?.correct_answer" />
+
+        <!-- 10-second audio preview for music questions -->
+        <div v-if="previewData?.question?.type === 'music' && previewData.question.media_url" class="preview-audio-player">
+          <audio ref="previewAudio" :src="previewData.question.media_url" @timeupdate="onPreviewTimeUpdate" preload="auto" />
+          <button class="preview-audio-btn" @click="togglePreviewAudio" :title="previewAudioPlaying ? $t('game.pausePreviewAudio') : $t('game.previewAudio')">
+            {{ previewAudioPlaying ? '⏸' : '▶' }}
+          </button>
+          <div class="preview-audio-track">
+            <div class="preview-audio-fill" :style="{ width: previewAudioPct + '%' }" />
+          </div>
+          <span class="preview-audio-time">{{ previewAudioSec }}s / {{ PREVIEW_DURATION }}s</span>
+        </div>
+
+        <div class="preview-actions">
+          <button class="btn btn-primary btn-lg" style="min-width:220px" @click="beginQuestion">
+            {{ $t('game.startQuestion') }}
+          </button>
+        </div>
       </div>
 
       <!-- Question in progress -->
@@ -332,7 +362,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '../i18n/index.js'
@@ -358,6 +388,12 @@ const hostTextAnswer = ref('')
 const error = ref('')
 const loading = ref(false)
 const countdown = ref(3)
+const previewData = ref(null)
+const previewAudio = ref(null)
+const previewAudioPlaying = ref(false)
+const previewAudioPct = ref(0)
+const previewAudioSec = ref(0)
+const PREVIEW_DURATION = 10
 const answeredCount = ref(0)
 const totalPlayers = ref(0)
 const categories = ref([])
@@ -401,6 +437,56 @@ function applyLang(question, lang) {
 }
 
 const hostQuestion = computed(() => applyLang(game.currentQuestion, game.language))
+const previewQuestionCard = computed(() => applyLang(previewData.value?.question, game.language))
+
+watch(previewData, async (val) => {
+  previewAudioPlaying.value = false
+  previewAudioPct.value = 0
+  previewAudioSec.value = 0
+  if (val?.question?.type === 'music' && val.question.media_url) {
+    await nextTick()
+    const el = previewAudio.value
+    if (!el) return
+    el.currentTime = 0
+    el.play().then(() => { previewAudioPlaying.value = true }).catch(() => {})
+  }
+})
+
+function onPreviewTimeUpdate() {
+  const el = previewAudio.value
+  if (!el) return
+  const t = el.currentTime
+  previewAudioSec.value = Math.floor(t)
+  previewAudioPct.value = Math.min((t / PREVIEW_DURATION) * 100, 100)
+  if (t >= PREVIEW_DURATION) {
+    el.pause()
+    el.currentTime = 0
+    previewAudioPlaying.value = false
+    previewAudioPct.value = 100
+  }
+}
+
+function togglePreviewAudio() {
+  const el = previewAudio.value
+  if (!el) return
+  if (previewAudioPlaying.value) {
+    el.pause()
+    previewAudioPlaying.value = false
+  } else {
+    if (previewAudioSec.value >= PREVIEW_DURATION) el.currentTime = 0
+    el.play().then(() => { previewAudioPlaying.value = true }).catch(() => {})
+  }
+}
+
+function stopPreviewAudio() {
+  const el = previewAudio.value
+  if (!el) return
+  el.pause()
+  el.currentTime = 0
+  previewAudioPlaying.value = false
+  previewAudioPct.value = 0
+  previewAudioSec.value = 0
+}
 const hostCorrectAnswer = computed(() => {
   const ca = game.lastResult?.correctAnswer
   const q = game.currentQuestion
@@ -451,7 +537,18 @@ const onPreparingReveal = ({ countdown: c }) => {
   }, 1000)
 }
 
+const onQuestionPreview = (data) => {
+  previewData.value = data
+  game.questionIndex = data.index
+  game.totalQuestions = data.total
+  if (data.roundType) game.roundType = data.roundType
+  game.questionModifier = data.questionModifier ?? null
+  game.setStatus('preview')
+}
+
 const onQuestion = data => {
+  stopPreviewAudio()
+  previewData.value = null
   answeredCount.value = 0
   hostAnswer.value = null
   hostTextAnswer.value = ''
@@ -495,6 +592,7 @@ onMounted(async () => {
   socket.on('player_joined', onPlayerJoined)
   socket.on('player_left', onPlayerLeft)
   socket.on('game_started', onGameStarted)
+  socket.on('question_preview', onQuestionPreview)
   socket.on('question', onQuestion)
   socket.on('player_answered', onPlayerAnswered)
   socket.on('answer_received', onAnswerReceived)
@@ -518,6 +616,7 @@ onUnmounted(() => {
   socket.off('player_joined', onPlayerJoined)
   socket.off('player_left', onPlayerLeft)
   socket.off('game_started', onGameStarted)
+  socket.off('question_preview', onQuestionPreview)
   socket.off('question', onQuestion)
   socket.off('player_answered', onPlayerAnswered)
   socket.off('answer_received', onAnswerReceived)
@@ -573,6 +672,10 @@ function startGame() {
 
 function revealResults() {
   socket.emit('reveal_results', { code: game.code })
+}
+
+function beginQuestion() {
+  socket.emit('begin_question', { code: game.code })
 }
 
 function nextQuestion() {
@@ -762,6 +865,43 @@ function resetGame() {
 
 .countdown-panel { text-align: center; padding: 60px; }
 .countdown-number { font-size: 6rem; font-weight: 900; color: var(--primary); }
+
+.preview-panel { display: flex; flex-direction: column; gap: 16px; }
+.preview-panel :deep(.media-block audio) { display: none; }
+.preview-header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.preview-badge {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.1em;
+  padding: 4px 10px; border-radius: 6px;
+  background: rgba(250,204,21,0.15); color: #eab308;
+  border: 1px solid rgba(250,204,21,0.3);
+}
+.preview-sub { font-size: 0.85rem; color: var(--text-muted); }
+.preview-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
+
+.preview-audio-player {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(30,215,96,0.08); border: 1px solid rgba(30,215,96,0.2);
+}
+.preview-audio-btn {
+  width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0;
+  background: #1ed760; color: #000; font-size: 1rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  transition: filter 0.15s;
+}
+.preview-audio-btn:hover { filter: brightness(1.1); }
+.preview-audio-track {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.1); overflow: hidden;
+}
+.preview-audio-fill {
+  height: 100%; border-radius: 3px;
+  background: #1ed760; transition: width 0.25s linear;
+}
+.preview-audio-time {
+  font-size: 0.78rem; font-weight: 700; color: #1ed760;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
 
 .answer-progress { display: flex; justify-content: space-between; align-items: center; margin: 16px 0; color: var(--text-muted); }
 

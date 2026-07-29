@@ -42,6 +42,7 @@ A real-time multiplayer pub quiz game. A host controls the game from one device 
 - **Streak tracking** — consecutive correct answers are tracked and displayed: a 🔥 chip appears on the player's answer screen, a streak badge shows on the scoreboard, and the round type **Hot Streak** amplifies streaks with a stacking multiplier
 - **Rank movement** — after each question the scoreboard shows ▲/▼ arrows indicating how many positions each team moved since the previous question
 - **Lone Wolf winner banner** — when a Lone Wolf question resolves, the winning team sees "You won this round!" and all others see who scored
+- **Host question preview** — before each question goes live, the host sees the question and answer privately, can read it aloud, and optionally preview 10s of a music track; players and the big screen wait until the host presses Start
 
 ---
 
@@ -233,8 +234,9 @@ Then open:
 4. In the lobby, configure the round: number of questions, category, and **round type**
 5. Optionally open the **Screen View** link on a projector/TV
 6. Click **Start Game** when everyone has joined
-7. Between rounds, reconfigure round settings (including round type) before starting the next round
-8. Click **Show Scoreboard** at any time to reveal the full overlay on all screens
+7. Before each question, review the **preview** (question + answer) and press **Start Question** when ready — players wait until you do
+8. Between rounds, reconfigure round settings (including round type) before starting the next round
+9. Click **Show Scoreboard** at any time to reveal the full overlay on all screens
 
 ### Teams
 1. Go to `/join` on any device (or scan the QR code on the screen view)
@@ -271,7 +273,8 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 | `submit_answer` | `{ code, answer }` | Team submits an answer |
 | `skip_question` | `{ code }` | Team skips the current question |
 | `reveal_results` | `{ code }` | Host manually reveals the answer |
-| `next_question` | `{ code }` | Host advances to the next question |
+| `next_question` | `{ code, timeOverride? }` | Host advances to the next question (opens host-only preview) |
+| `begin_question` | `{ code }` | Host ends preview and broadcasts the question to all devices |
 | `show_scoreboard` | `{ code }` | Host triggers the scoreboard overlay on all screens |
 | `hide_scoreboard` | `{ code }` | Host dismisses the scoreboard overlay |
 | `play_music` | `{ code }` | Host starts audio playback on all connected devices |
@@ -288,7 +291,9 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 | `player_joined` | `{ player, players }` | Broadcast when a team joins |
 | `player_left` | `{ playerId, players }` | Broadcast when a team disconnects |
 | `game_started` | `{ totalQuestions, roundType, language }` | Broadcast when a round begins |
-| `question` | `{ index, total, question, roundType }` | Broadcast each new question |
+| `question_pending` | `{ index, total, roundType }` | Broadcast when the host enters preview — players/screen wait |
+| `question_preview` | `{ index, total, question, roundType, questionModifier }` | Host-only: full question including correct answer for reading aloud |
+| `question` | `{ index, total, question, roundType, questionModifier }` | Broadcast when the host starts the question (timer begins) |
 | `answer_received` | `{ isCorrect, pointsAwarded, consecutiveSkips, correctStreak, forcedPenalty? }` | Sent to answering team |
 | `skip_confirmed` | `{ consecutiveSkips, penaltyMultiplier }` | Sent to skipping team |
 | `player_answered` | `{ totalAnswered, totalPlayers, ... }` | Sent to host as teams answer |

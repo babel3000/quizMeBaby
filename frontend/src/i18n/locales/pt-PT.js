@@ -53,6 +53,8 @@ export default {
     musicPlaying: 'A tocar…',
     musicWaiting: 'À espera que o anfitrião toque a música…',
     waitingForHost: 'À espera que o anfitrião inicie o jogo…',
+    waitingForQuestion: 'À espera do anfitrião…',
+    waitingForQuestionSub: 'O anfitrião está a ler a próxima pergunta',
     waitingForResults: 'À espera dos resultados…',
     skip: 'Saltar ↷',
     skipCount: '{n}/4 saltos',
@@ -71,6 +73,11 @@ export default {
     finalScores: '🏆 Pontuações Finais',
     playAgain: 'Jogar Novamente',
     answered: '{n} / {total} responderam',
+    previewBadge: 'PRÉ-VISUALIZAÇÃO',
+    previewSub: 'Os jogadores estão à espera — lê em voz alta e depois inicia o temporizador',
+    startQuestion: '▶ Iniciar Pergunta',
+    previewAudio: 'Ouvir 10s',
+    pausePreviewAudio: 'Pausar',
   },
 
   results: {
@@ -115,6 +122,8 @@ export default {
     connecting: 'A ligar…',
     multipleGames: 'Vários jogos activos — escolhe um:',
     players: 'jogadores',
+    waitingForQuestion: 'Preparem-se para a pergunta {n}',
+    waitingForQuestionSub: 'O anfitrião está a preparar…',
   },
 
   lobby: {

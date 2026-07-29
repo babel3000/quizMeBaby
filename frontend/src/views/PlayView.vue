@@ -40,6 +40,14 @@
       <div class="countdown">{{ countdown }}</div>
     </div>
 
+    <!-- Host is previewing the next question -->
+    <div v-else-if="game.status === 'waiting'" class="fullscreen-center waiting-screen">
+      <span class="badge badge-primary">{{ $t('game.questionOf', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</span>
+      <p class="get-ready">{{ $t('game.waitingForQuestion') }}</p>
+      <p class="waiting-sub">{{ $t('game.waitingForQuestionSub') }}</p>
+      <div class="dots"><span /><span /><span /></div>
+    </div>
+
     <!-- Answer question -->
     <div v-else-if="game.status === 'question'" class="question-screen">
 
@@ -336,6 +344,14 @@ const onGameStarted = ({ totalQuestions }) => {
   let c = 3
   const t = setInterval(() => { c--; countdown.value = c; if (c <= 0) clearInterval(t) }, 1000)
 }
+const onQuestionPending = ({ index, total, roundType }) => {
+  game.questionIndex = index
+  game.totalQuestions = total
+  if (roundType) game.roundType = roundType
+  game.currentQuestion = null
+  game.myAnswer = null
+  game.setStatus('waiting')
+}
 const onQuestion = data => {
   textAnswer.value = ''
   revealCountdown.value = null
@@ -388,6 +404,9 @@ const onRejoined = ({ code: roomCode, player: me, status, question, questionInde
     game.timeLimit = question.time_limit ?? 30
     game.myAnswer = myAnswer ?? null
     game.setStatus('question')
+  } else if (status === 'preview') {
+    game.questionIndex = questionIndex
+    game.setStatus('waiting')
   } else if (status === 'results' && lastResult) {
     game.currentQuestion = question
     game.questionIndex = questionIndex
@@ -426,6 +445,7 @@ const onLanguageChanged = ({ language }) => { game.setLanguage(language); setLoc
 
 onMounted(() => {
   socket.on('game_started', onGameStarted)
+  socket.on('question_pending', onQuestionPending)
   socket.on('question', onQuestion)
   socket.on('answer_received', onAnswerReceived)
   socket.on('skip_confirmed', onSkipConfirmed)
@@ -451,6 +471,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   socket.off('game_started', onGameStarted)
+  socket.off('question_pending', onQuestionPending)
   socket.off('question', onQuestion)
   socket.off('answer_received', onAnswerReceived)
   socket.off('skip_confirmed', onSkipConfirmed)
@@ -515,6 +536,8 @@ function skipQuestion() {
   justify-content: center; min-height: 100dvh; gap: 16px;
 }
 .get-ready { font-size: 1.4rem; color: var(--text-muted); font-weight: 600; }
+.waiting-sub { font-size: 1rem; color: var(--text-muted); opacity: 0.85; margin: 0; }
+.waiting-screen .badge { margin-bottom: 4px; }
 .countdown { font-size: 6rem; font-weight: 900; color: var(--primary); line-height: 1; }
 
 /* ── Question screen ────────────────────── */

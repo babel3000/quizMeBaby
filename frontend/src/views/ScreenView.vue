@@ -12,6 +12,14 @@
       <PlayerList :players="game.players.filter(p => !p.isHost)" :large="true" />
     </div>
 
+    <!-- Host is previewing the next question -->
+    <div v-else-if="game.status === 'waiting'" class="screen-waiting">
+      <div class="q-counter">{{ $t('screen.question', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</div>
+      <h1>{{ $t('screen.waitingForQuestion', { n: game.questionIndex + 1 }) }}</h1>
+      <p class="waiting-sub">{{ $t('screen.waitingForQuestionSub') }}</p>
+      <div class="dots"><span /><span /><span /></div>
+    </div>
+
     <!-- Question screen -->
     <div v-else-if="game.status === 'question'" class="screen-question">
       <div class="q-counter">{{ $t('screen.question', { n: game.questionIndex + 1, total: game.totalQuestions }) }}</div>
@@ -164,7 +172,17 @@ const onJoined = ({ players, language }) => {
 }
 const onPlayerJoined = ({ players }) => game.setPlayers(players)
 const onPlayerLeft = ({ players }) => game.setPlayers(players)
-const onGameStarted = ({ totalQuestions }) => { game.totalQuestions = totalQuestions }
+const onGameStarted = ({ totalQuestions, roundType }) => {
+  game.totalQuestions = totalQuestions
+  if (roundType) game.roundType = roundType
+}
+const onQuestionPending = ({ index, total, roundType }) => {
+  game.questionIndex = index
+  game.totalQuestions = total
+  if (roundType) game.roundType = roundType
+  game.currentQuestion = null
+  game.setStatus('waiting')
+}
 // onQuestion defined above
 const onResultsRevealed = data => game.setResults(data)
 const onGameEnded = data => game.endGame(data)
@@ -183,6 +201,7 @@ onMounted(() => {
   socket.on('player_joined', onPlayerJoined)
   socket.on('player_left', onPlayerLeft)
   socket.on('game_started', onGameStarted)
+  socket.on('question_pending', onQuestionPending)
   socket.on('question', onQuestion)
   socket.on('preparing_reveal', onPreparingReveal)
   socket.on('music_play', onMusicPlay)
@@ -200,6 +219,7 @@ onUnmounted(() => {
   socket.off('player_joined', onPlayerJoined)
   socket.off('player_left', onPlayerLeft)
   socket.off('game_started', onGameStarted)
+  socket.off('question_pending', onQuestionPending)
   socket.off('question', onQuestion)
   socket.off('preparing_reveal', onPreparingReveal)
   socket.off('music_play', onMusicPlay)
@@ -223,6 +243,21 @@ onUnmounted(() => {
 .screen-lobby h1 { font-size: 2rem; color: var(--text-muted); }
 .join-url { color: var(--text); }
 .big-code { font-size: 7rem; font-weight: 900; letter-spacing: 16px; color: var(--primary); line-height: 1; }
+
+.screen-waiting {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 16px;
+}
+.screen-waiting h1 { font-size: 3rem; font-weight: 800; margin: 0; }
+.screen-waiting .waiting-sub { font-size: 1.4rem; color: var(--text-muted); margin: 0; }
+.screen-waiting .dots { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+.screen-waiting .dots span {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--primary); animation: bounce 1.2s infinite;
+}
+.screen-waiting .dots span:nth-child(2) { animation-delay: 0.2s; }
+.screen-waiting .dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
 .screen-question { flex: 1; display: flex; flex-direction: column; gap: 24px; }
 .q-counter { font-size: 1.2rem; color: var(--text-muted); font-weight: 600; }
