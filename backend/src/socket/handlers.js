@@ -50,7 +50,7 @@ export function registerHandlers(io, socket) {
     })
   })
 
-  socket.on('start_game', async ({ code, numQuestions = 10, roundType = 'normal', categoryId } = {}) => {
+  socket.on('start_game', async ({ code, numQuestions = 10, roundType = 'normal', categoryId, moderationMode = 'host' } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
 
@@ -80,9 +80,18 @@ export function registerHandlers(io, socket) {
       questions = questions.map(q => ({ ...q, translations: tByQ.get(q.id) ?? {} }))
     }
 
-    session.startGame(questions, roundType)
-    io.to(code).emit('game_started', { totalQuestions: questions.length, language: session.language, roundType })
-    setTimeout(() => session.previewQuestion(io), 3000)
+    session.startGame(questions, roundType, moderationMode)
+    io.to(code).emit('game_started', {
+      totalQuestions: questions.length,
+      language: session.language,
+      roundType,
+      moderationMode: session.moderationMode,
+    })
+    if (session.moderationMode === 'players') {
+      setTimeout(() => session.autoStartQuestion(io), 3000)
+    } else {
+      setTimeout(() => session.previewQuestion(io), 3000)
+    }
   })
 
   socket.on('submit_answer', ({ code, answer } = {}) => {
@@ -203,6 +212,7 @@ export function registerHandlers(io, socket) {
   socket.on('next_question', ({ code, timeOverride } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
+    if (session.moderationMode === 'players') return
     if (session.status === 'preview') return
     if (timeOverride > 0) session.nextQuestionTimeOverride = timeOverride
     session.previewQuestion(io)
@@ -211,7 +221,22 @@ export function registerHandlers(io, socket) {
   socket.on('begin_question', ({ code } = {}) => {
     const session = getSession(code)
     if (!session || session.hostSocketId !== socket.id) return
+    if (session.moderationMode === 'players') return
     session.broadcastQuestion(io)
+  })
+
+  socket.on('ready_for_next_question', ({ code } = {}) => {
+    const session = getSession(code)
+    if (!session) return
+
+    const isLastQuestion = session.currentQuestionIndex >= session.questions.length - 1
+    const result = session.markReadyForNextQuestion(socket.id)
+    if (!result.accepted) return
+
+    io.to(code).emit('next_question_ready_update', result.status)
+    if (result.complete && !isLastQuestion) {
+      session.autoStartQuestion(io)
+    }
   })
 
   socket.on('play_music', ({ code } = {}) => {
@@ -244,6 +269,14 @@ export function registerHandlers(io, socket) {
         nickname: player.nickname,
         players: session.getPlayers(),
       })
+      if (session.status === 'results' && session.moderationMode === 'players') {
+        const status = session.getReadyForNextStatus()
+        io.to(session.code).emit('next_question_ready_update', status)
+        const isLastQuestion = session.currentQuestionIndex >= session.questions.length - 1
+        if (!isLastQuestion && status.total > 0 && status.readyCount >= status.total) {
+          session.autoStartQuestion(io)
+        }
+      }
     }
   })
 }

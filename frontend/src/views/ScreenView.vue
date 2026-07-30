@@ -54,6 +54,9 @@
           </div>
         </div>
       </div>
+      <div v-if="!game.lastResult?.isLastQuestion && game.moderationMode === 'players'" class="ready-status">
+        {{ $t('results.readyCount', { ready: game.readyForNext.readyCount, total: game.readyForNext.total }) }}
+      </div>
     </div>
 
     <!-- End screen -->
@@ -172,9 +175,11 @@ const onJoined = ({ players, language }) => {
 }
 const onPlayerJoined = ({ players }) => game.setPlayers(players)
 const onPlayerLeft = ({ players }) => game.setPlayers(players)
-const onGameStarted = ({ totalQuestions, roundType }) => {
+const onGameStarted = ({ totalQuestions, roundType, moderationMode }) => {
   game.totalQuestions = totalQuestions
   if (roundType) game.roundType = roundType
+  game.moderationMode = moderationMode ?? 'host'
+  game.readyForNext = { readyCount: 0, total: 0 }
 }
 const onQuestionPending = ({ index, total, roundType }) => {
   game.questionIndex = index
@@ -185,6 +190,7 @@ const onQuestionPending = ({ index, total, roundType }) => {
 }
 // onQuestion defined above
 const onResultsRevealed = data => game.setResults(data)
+const onReadyUpdate = status => { game.readyForNext = status }
 const onGameEnded = data => game.endGame(data)
 const onShowScoreboard = ({ scoreboard, roundType }) => {
   game.scoreboard = scoreboard
@@ -207,6 +213,7 @@ onMounted(() => {
   socket.on('music_play', onMusicPlay)
   socket.on('music_stop', onMusicStop)
   socket.on('results_revealed', onResultsRevealed)
+  socket.on('next_question_ready_update', onReadyUpdate)
   socket.on('game_ended', onGameEnded)
   socket.on('show_scoreboard', onShowScoreboard)
   socket.on('hide_scoreboard', onHideScoreboard)
@@ -225,6 +232,7 @@ onUnmounted(() => {
   socket.off('music_play', onMusicPlay)
   socket.off('music_stop', onMusicStop)
   socket.off('results_revealed', onResultsRevealed)
+  socket.off('next_question_ready_update', onReadyUpdate)
   onMusicStop()
   socket.off('game_ended', onGameEnded)
   socket.off('show_scoreboard', onShowScoreboard)
@@ -297,6 +305,12 @@ onUnmounted(() => {
 .at-rank { font-size: 0.8rem; color: var(--text-muted); width: 28px; flex-shrink: 0; }
 .at-name { flex: 1; font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .at-time { font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-muted); flex-shrink: 0; }
+.ready-status {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 .chaos-mod-banner {
   text-align: center;

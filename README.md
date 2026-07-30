@@ -43,6 +43,7 @@ A real-time multiplayer pub quiz game. A host controls the game from one device 
 - **Rank movement** — after each question the scoreboard shows ▲/▼ arrows indicating how many positions each team moved since the previous question
 - **Lone Wolf winner banner** — when a Lone Wolf question resolves, the winning team sees "You won this round!" and all others see who scored
 - **Host question preview** — before each question goes live, the host sees the question and answer privately, can read it aloud, and optionally preview 10s of a music track; players and the big screen wait until the host presses Start
+- **Player-moderated mode** — optional no-host progression: in results, teams tap **Ready for next question**; when all active teams are ready, the next question starts automatically
 
 ---
 
@@ -231,12 +232,13 @@ Then open:
 1. Go to `/` → **Host a Game**
 2. Enter your name; optionally enable **Play as a team** to compete as your own team with a custom name
 3. Click **Create Room** and share the 6-character room code with teams
-4. In the lobby, configure the round: number of questions, category, and **round type**
+4. In the lobby, configure the round: number of questions, category, **round type**, and moderation mode (**Host controlled** or **Players controlled**)
 5. Optionally open the **Screen View** link on a projector/TV
 6. Click **Start Game** when everyone has joined
-7. Before each question, review the **preview** (question + answer) and press **Start Question** when ready — players wait until you do
-8. Between rounds, reconfigure round settings (including round type) before starting the next round
-9. Click **Show Scoreboard** at any time to reveal the full overlay on all screens
+7. If moderation mode is **Host controlled**, review the **preview** (question + answer) and press **Start Question** when ready
+8. If moderation mode is **Players controlled**, teams advance the game from results using **Ready for next question** (no host action required between questions)
+9. Between rounds, reconfigure round settings before starting the next round
+10. Click **Show Scoreboard** at any time to reveal the full overlay on all screens
 
 ### Teams
 1. Go to `/join` on any device (or scan the QR code on the screen view)
@@ -269,12 +271,13 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 | `create_session` | `{ nickname, teamName? }` | Host creates a room; `teamName` opts the host in as a competing team |
 | `join_session` | `{ code, nickname }` | Team joins a room |
 | `join_screen` | `{ code }` | Screen view joins the room as an observer (no player record created) |
-| `start_game` | `{ code, numQuestions, roundType, categoryId? }` | Host starts a round |
+| `start_game` | `{ code, numQuestions, roundType, categoryId?, moderationMode? }` | Host starts a round (`moderationMode`: `host` or `players`) |
 | `submit_answer` | `{ code, answer }` | Team submits an answer |
 | `skip_question` | `{ code }` | Team skips the current question |
 | `reveal_results` | `{ code }` | Host manually reveals the answer |
 | `next_question` | `{ code, timeOverride? }` | Host advances to the next question (opens host-only preview) |
 | `begin_question` | `{ code }` | Host ends preview and broadcasts the question to all devices |
+| `ready_for_next_question` | `{ code }` | Team marks itself ready in player-moderated mode |
 | `show_scoreboard` | `{ code }` | Host triggers the scoreboard overlay on all screens |
 | `hide_scoreboard` | `{ code }` | Host dismisses the scoreboard overlay |
 | `play_music` | `{ code }` | Host starts audio playback on all connected devices |
@@ -290,16 +293,17 @@ Go to `/manage` to add, edit, and delete questions without touching the database
 | `joined_session` | `{ code, player, players, language }` | Sent to joining team or screen view |
 | `player_joined` | `{ player, players }` | Broadcast when a team joins |
 | `player_left` | `{ playerId, players }` | Broadcast when a team disconnects |
-| `game_started` | `{ totalQuestions, roundType, language }` | Broadcast when a round begins |
+| `game_started` | `{ totalQuestions, roundType, language, moderationMode }` | Broadcast when a round begins |
 | `question_pending` | `{ index, total, roundType }` | Broadcast when the host enters preview — players/screen wait |
 | `question_preview` | `{ index, total, question, roundType, questionModifier }` | Host-only: full question including correct answer for reading aloud |
-| `question` | `{ index, total, question, roundType, questionModifier }` | Broadcast when the host starts the question (timer begins) |
+| `question` | `{ index, total, question, roundType, questionModifier, moderationMode }` | Broadcast when the question starts (timer begins) |
 | `answer_received` | `{ isCorrect, pointsAwarded, consecutiveSkips, correctStreak, forcedPenalty? }` | Sent to answering team |
 | `skip_confirmed` | `{ consecutiveSkips, penaltyMultiplier }` | Sent to skipping team |
 | `player_answered` | `{ totalAnswered, totalPlayers, ... }` | Sent to host as teams answer |
 | `music_play` | `{ }` | Broadcast to all devices: start playing the question's audio preview |
 | `music_stop` | `{ }` | Broadcast to all devices: stop audio playback |
-| `results_revealed` | `{ correctAnswer, scoreboard, playerResults, roundType, isLastQuestion, loneWolfWinner? }` | Broadcast after reveal |
+| `results_revealed` | `{ correctAnswer, scoreboard, playerResults, roundType, isLastQuestion, loneWolfWinner?, moderationMode, readyForNext }` | Broadcast after reveal |
+| `next_question_ready_update` | `{ readyCount, total }` | Broadcast ready progress in player-moderated mode |
 | `show_scoreboard` | `{ scoreboard, roundType }` | Broadcast to trigger overlay on all screens |
 | `hide_scoreboard` | — | Broadcast to dismiss overlay |
 | `language_changed` | `{ language }` | Broadcast when host changes the room language |

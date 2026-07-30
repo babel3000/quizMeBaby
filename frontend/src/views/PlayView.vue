@@ -189,6 +189,15 @@
         </div>
         <Scoreboard :players="game.scoreboard" :highlight-id="player.id" :show-delta="true" />
 
+        <div v-if="!game.lastResult?.isLastQuestion && game.moderationMode === 'players'" class="ready-next-card">
+          <button class="btn btn-primary btn-lg" :disabled="game.isReadyForNext" @click="readyForNextQuestion">
+            {{ game.isReadyForNext ? $t('results.readyMarked') : $t('results.readyForNext') }}
+          </button>
+          <p class="ready-progress">
+            {{ $t('results.readyCount', { ready: game.readyForNext.readyCount, total: game.readyForNext.total }) }}
+          </p>
+        </div>
+
         <div v-if="game.lastResult?.isLastQuestion" class="round-complete-notice">
           <p class="rc-title">{{ $t('results.roundComplete') }}</p>
           <p class="rc-sub">{{ $t('results.waitingForNextRound') }}</p>
@@ -338,8 +347,11 @@ const onPreparingReveal = ({ countdown }) => {
   }, 1000)
 }
 
-const onGameStarted = ({ totalQuestions }) => {
+const onGameStarted = ({ totalQuestions, moderationMode }) => {
   game.totalQuestions = totalQuestions
+  game.moderationMode = moderationMode ?? 'host'
+  game.isReadyForNext = false
+  game.readyForNext = { readyCount: 0, total: 0 }
   game.setStatus('starting')
   let c = 3
   const t = setInterval(() => { c--; countdown.value = c; if (c <= 0) clearInterval(t) }, 1000)
@@ -348,6 +360,8 @@ const onQuestionPending = ({ index, total, roundType }) => {
   game.questionIndex = index
   game.totalQuestions = total
   if (roundType) game.roundType = roundType
+  game.isReadyForNext = false
+  game.readyForNext = { readyCount: 0, total: 0 }
   game.currentQuestion = null
   game.myAnswer = null
   game.setStatus('waiting')
@@ -371,6 +385,9 @@ const onSkipConfirmed = ({ consecutiveSkips }) => {
   game.setMyAnswer({ skipped: true, isCorrect: false, pointsAwarded: 0, forcedPenalty: false })
 }
 const onResultsRevealed = data => game.setResults(data)
+const onReadyUpdate = status => {
+  game.readyForNext = status
+}
 const onGameEnded = data => {
   game.endGame(data)
   localStorage.removeItem('reconnect')
@@ -386,7 +403,7 @@ function tryRejoin() {
 
 const onRejoined = ({ code: roomCode, player: me, status, question, questionIndex,
   totalQuestions, scoreboard, players, language, roundType, questionModifier,
-  myAnswer, lastResult }) => {
+  moderationMode, isReadyForNext, myAnswer, lastResult }) => {
   reconnecting.value = false
   player.setPlayer(me)
   game.setCode(roomCode)
@@ -395,6 +412,8 @@ const onRejoined = ({ code: roomCode, player: me, status, question, questionInde
   setLocale(language ?? 'en')
   game.roundType = roundType ?? 'normal'
   game.questionModifier = questionModifier ?? null
+  game.moderationMode = moderationMode ?? 'host'
+  game.isReadyForNext = isReadyForNext ?? false
   game.scoreboard = scoreboard ?? []
   game.totalQuestions = totalQuestions
 
@@ -411,6 +430,7 @@ const onRejoined = ({ code: roomCode, player: me, status, question, questionInde
     game.currentQuestion = question
     game.questionIndex = questionIndex
     game.setResults(lastResult)
+    game.isReadyForNext = isReadyForNext ?? false
     if (myAnswer) game.myAnswer = myAnswer
   } else {
     game.setStatus(status === 'lobby' ? 'lobby' : 'idle')
@@ -450,6 +470,7 @@ onMounted(() => {
   socket.on('answer_received', onAnswerReceived)
   socket.on('skip_confirmed', onSkipConfirmed)
   socket.on('results_revealed', onResultsRevealed)
+  socket.on('next_question_ready_update', onReadyUpdate)
   socket.on('game_ended', onGameEnded)
   socket.on('player_joined', onPlayerJoined)
   socket.on('player_left', onPlayerLeft)
@@ -476,6 +497,7 @@ onUnmounted(() => {
   socket.off('answer_received', onAnswerReceived)
   socket.off('skip_confirmed', onSkipConfirmed)
   socket.off('results_revealed', onResultsRevealed)
+  socket.off('next_question_ready_update', onReadyUpdate)
   socket.off('game_ended', onGameEnded)
   socket.off('player_joined', onPlayerJoined)
   socket.off('player_left', onPlayerLeft)
@@ -496,6 +518,12 @@ onUnmounted(() => {
 function skipQuestion() {
   if (game.myAnswer) return
   socket.emit('skip_question', { code: game.code })
+}
+
+function readyForNextQuestion() {
+  if (game.isReadyForNext || game.lastResult?.isLastQuestion) return
+  game.isReadyForNext = true
+  socket.emit('ready_for_next_question', { code: game.code })
 }
 </script>
 
@@ -590,6 +618,18 @@ function skipQuestion() {
 }
 .results-streak-mult {
   font-size: 0.85em; opacity: 0.8; margin-left: 4px;
+}
+.ready-next-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 14px;
+}
+.ready-progress {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .q-timer { margin-left: auto; }

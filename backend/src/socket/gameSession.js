@@ -36,6 +36,8 @@ export class GameSession {
     this.revealPending = false
     this.revealTimer = null
     this.nextQuestionTimeOverride = null
+    this.moderationMode = 'host'
+    this.readyForNextQuestion = new Set()
   }
 
   addPlayer(socketId, nickname, isHost = false) {
@@ -58,6 +60,7 @@ export class GameSession {
   removePlayer(socketId) {
     const player = this.players.get(socketId)
     if (player) player.connected = false
+    this.readyForNextQuestion.delete(socketId)
     return player
   }
 
@@ -88,11 +91,25 @@ export class GameSession {
     return safeQuestion
   }
 
-  startGame(questions, roundType = 'normal') {
+  startGame(questions, roundType = 'normal', moderationMode = 'host') {
     this.questions = questions
     this.roundType = roundType
+    this.moderationMode = moderationMode === 'players' ? 'players' : 'host'
     this.status = 'active'
     this.currentQuestionIndex = -1
+    this.readyForNextQuestion = new Set()
+  }
+
+  getParticipatingPlayers() {
+    return this.getPlayers().filter(p => (!p.isHost || this.hostPlaysAsTeam) && p.connected)
+  }
+
+  getReadyForNextStatus() {
+    const total = this.getParticipatingPlayers().length
+    return {
+      readyCount: this.readyForNextQuestion.size,
+      total,
+    }
   }
 
   previewQuestion(io) {
@@ -126,10 +143,28 @@ export class GameSession {
     return true
   }
 
+  autoStartQuestion(io) {
+    this.currentQuestionIndex++
+    if (this.roundType === 'chaos') {
+      this.questionModifier = CHAOS_MODIFIERS[Math.floor(Math.random() * CHAOS_MODIFIERS.length)]
+    } else {
+      this.questionModifier = null
+    }
+    for (const player of this.players.values()) {
+      player.scoreBeforeQuestion = player.score
+      player.skippedThisQuestion = false
+    }
+    this.readyForNextQuestion = new Set()
+
+    this.status = 'preview'
+    return this.broadcastQuestion(io)
+  }
+
   broadcastQuestion(io) {
     if (this.status !== 'preview') return false
 
     this.status = 'active'
+    this.readyForNextQuestion = new Set()
     this.questionAnswers = new Map()
     this.questionStartTime = Date.now()
     this.firstCorrectThisQuestion = false
@@ -152,6 +187,22 @@ export class GameSession {
     this.nextQuestionTimeOverride = null
     this.timer = setTimeout(() => this.prepareReveal(io), timeLimit * 1000)
     return true
+  }
+
+  markReadyForNextQuestion(socketId) {
+    if (this.status !== 'results') return { accepted: false, complete: false }
+    if (this.moderationMode !== 'players') return { accepted: false, complete: false }
+    const player = this.players.get(socketId)
+    if (!player || !player.connected) return { accepted: false, complete: false }
+    if (player.isHost && !this.hostPlaysAsTeam) return { accepted: false, complete: false }
+
+    this.readyForNextQuestion.add(socketId)
+    const { readyCount, total } = this.getReadyForNextStatus()
+    return {
+      accepted: true,
+      complete: total > 0 && readyCount >= total,
+      status: { readyCount, total },
+    }
   }
 
   prepareReveal(io) {
@@ -294,6 +345,11 @@ export class GameSession {
       this.questionAnswers.delete(oldSocketId)
     }
 
+    if (this.readyForNextQuestion.has(oldSocketId)) {
+      this.readyForNextQuestion.delete(oldSocketId)
+      this.readyForNextQuestion.add(newSocketId)
+    }
+
     return playerData
   }
 
@@ -324,6 +380,7 @@ export class GameSession {
         questionModifier: this.questionModifier,
         loneWolfWinner: this.loneWolfWinner,
         isLastQuestion: this.currentQuestionIndex >= this.questions.length - 1,
+        readyForNext: this.getReadyForNextStatus(),
       }
     }
 
@@ -337,6 +394,8 @@ export class GameSession {
       language: this.language,
       roundType: this.roundType,
       questionModifier: this.questionModifier,
+      moderationMode: this.moderationMode,
+      isReadyForNext: this.readyForNextQuestion.has(socketId),
       myAnswer,
       lastResult,
     }
@@ -414,6 +473,8 @@ export class GameSession {
       questionModifier: this.questionModifier,
       loneWolfWinner: this.loneWolfWinner,
       isLastQuestion: this.currentQuestionIndex >= this.questions.length - 1,
+      moderationMode: this.moderationMode,
+      readyForNext: this.getReadyForNextStatus(),
     })
   }
 

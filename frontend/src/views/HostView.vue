@@ -96,6 +96,22 @@
         </div>
 
         <div class="setup-row">
+          <span class="setup-row-label">{{ $t('host.moderationMode') }}</span>
+          <div class="count-pills">
+            <button
+              class="count-pill"
+              :class="{ active: roundConfig.moderationMode === 'host' }"
+              @click="roundConfig.moderationMode = 'host'"
+            >{{ $t('host.moderationHost') }}</button>
+            <button
+              class="count-pill"
+              :class="{ active: roundConfig.moderationMode === 'players' }"
+              @click="roundConfig.moderationMode = 'players'"
+            >{{ $t('host.moderationPlayers') }}</button>
+          </div>
+        </div>
+
+        <div class="setup-row">
           <span class="setup-row-label">{{ $t('host.language') }}</span>
           <div class="lang-pills">
             <button
@@ -313,8 +329,13 @@
         <div class="results-actions">
           <button class="btn btn-secondary" @click="showScoreboard">{{ $t('results.showScoreboard') }}</button>
 
-          <template v-if="!game.lastResult?.isLastQuestion">
+          <template v-if="!game.lastResult?.isLastQuestion && game.moderationMode === 'host'">
             <button class="btn btn-primary btn-lg" @click="nextQuestion">{{ $t('results.nextQuestion') }}</button>
+          </template>
+          <template v-else-if="!game.lastResult?.isLastQuestion && game.moderationMode === 'players'">
+            <span class="ready-progress-host">
+              {{ $t('results.readyCount', { ready: game.readyForNext.readyCount, total: game.readyForNext.total }) }}
+            </span>
           </template>
           <template v-else-if="!configuringNewRound">
             <button class="btn btn-secondary" @click="configuringNewRound = true">{{ $t('host.newRound') }}</button>
@@ -406,6 +427,7 @@ const roundConfig = reactive({
   numQuestions: 10,
   categoryId: null,
   roundType: 'normal',
+  moderationMode: 'host',
 })
 
 const LANGUAGES = [
@@ -517,8 +539,10 @@ const onSessionCreated = ({ code, player: me, players, language, hostPlaysAsTeam
 }
 const onPlayerJoined = ({ players }) => game.setPlayers(players)
 const onPlayerLeft = ({ players }) => game.setPlayers(players)
-const onGameStarted = ({ totalQuestions, roundType }) => {
+const onGameStarted = ({ totalQuestions, roundType, moderationMode }) => {
   if (roundType) game.roundType = roundType
+  game.moderationMode = moderationMode ?? 'host'
+  game.readyForNext = { readyCount: 0, total: 0 }
   game.totalQuestions = totalQuestions
   game.setStatus('starting')
   configuringNewRound.value = false
@@ -577,6 +601,7 @@ const onPlayerAnswered = ({ totalAnswered, totalPlayers: tp }) => {
 }
 const onAnswerReceived = result => { hostAnswer.value = result }
 const onResultsRevealed = data => game.setResults(data)
+const onReadyUpdate = status => { game.readyForNext = status }
 const onGameEnded = data => game.endGame(data)
 const onRoundTypeChanged = ({ roundType }) => { game.roundType = roundType }
 const onLanguageChanged = ({ language }) => { game.setLanguage(language); setLocale(language) }
@@ -597,6 +622,7 @@ onMounted(async () => {
   socket.on('player_answered', onPlayerAnswered)
   socket.on('answer_received', onAnswerReceived)
   socket.on('results_revealed', onResultsRevealed)
+  socket.on('next_question_ready_update', onReadyUpdate)
   socket.on('preparing_reveal', onPreparingReveal)
   socket.on('music_stop', onMusicStop)
   socket.on('game_ended', onGameEnded)
@@ -621,6 +647,7 @@ onUnmounted(() => {
   socket.off('player_answered', onPlayerAnswered)
   socket.off('answer_received', onAnswerReceived)
   socket.off('results_revealed', onResultsRevealed)
+  socket.off('next_question_ready_update', onReadyUpdate)
   socket.off('preparing_reveal', onPreparingReveal)
   socket.off('music_stop', onMusicStop)
   socket.off('game_ended', onGameEnded)
@@ -667,6 +694,7 @@ function startGame() {
     numQuestions: roundConfig.numQuestions,
     roundType: roundConfig.roundType,
     categoryId: roundConfig.categoryId || undefined,
+    moderationMode: roundConfig.moderationMode,
   })
 }
 
@@ -943,6 +971,11 @@ function resetGame() {
 .at-name { flex: 1; font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .at-time { font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-muted); flex-shrink: 0; }
 .results-actions { display: flex; justify-content: flex-end; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ready-progress-host {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 .end-card { max-width: 600px; width: 100%; }
 

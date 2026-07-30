@@ -18,6 +18,9 @@ export const useGameStore = defineStore('game', () => {
   const language = ref('en')
   const playerLanguage = ref(localStorage.getItem('playerLanguage') || null)
   const hostPlaysAsTeam = ref(false)
+  const moderationMode = ref('host')
+  const readyForNext = ref({ readyCount: 0, total: 0 })
+  const isReadyForNext = ref(false)
 
   function setLanguage(lang) { language.value = lang }
   function setPlayerLanguage(lang) {
@@ -37,7 +40,10 @@ export const useGameStore = defineStore('game', () => {
     timeLimit.value = data.question.time_limit ?? 30
     roundType.value = data.roundType ?? 'normal'
     questionModifier.value = data.questionModifier ?? null
+    moderationMode.value = data.moderationMode ?? moderationMode.value
     myAnswer.value = null
+    isReadyForNext.value = false
+    readyForNext.value = { readyCount: 0, total: 0 }
     scoreboardVisible.value = false
     status.value = 'question'
   }
@@ -51,6 +57,9 @@ export const useGameStore = defineStore('game', () => {
     scoreboard.value = data.scoreboard
     roundType.value = data.roundType ?? roundType.value
     questionModifier.value = data.questionModifier ?? null
+    moderationMode.value = data.moderationMode ?? moderationMode.value
+    readyForNext.value = data.readyForNext ?? { readyCount: 0, total: 0 }
+    isReadyForNext.value = false
     status.value = 'results'
   }
 
@@ -74,6 +83,9 @@ export const useGameStore = defineStore('game', () => {
     scoreboardVisible.value = false
     language.value = 'en'
     hostPlaysAsTeam.value = false
+    moderationMode.value = 'host'
+    readyForNext.value = { readyCount: 0, total: 0 }
+    isReadyForNext.value = false
     // playerLanguage is intentionally NOT reset — it's a persistent device preference
   }
 
@@ -81,6 +93,7 @@ export const useGameStore = defineStore('game', () => {
     code, status, players, currentQuestion, questionIndex,
     totalQuestions, scoreboard, lastResult, myAnswer, timeLimit,
     roundType, questionModifier, scoreboardVisible, language, playerLanguage, hostPlaysAsTeam,
+    moderationMode, readyForNext, isReadyForNext,
     setCode, setStatus, setPlayers, setQuestion, setMyAnswer, setResults, endGame, reset,
     setLanguage, setPlayerLanguage, setHostPlaysAsTeam,
   }
